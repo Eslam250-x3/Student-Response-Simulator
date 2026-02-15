@@ -36,10 +36,20 @@ function runPreTest() {
     return;
   }
 
+  // التحقق من صحة الاعدادات
+  const validation = validateConfig(config);
+  if (!validation.valid) {
+    Logger.log("❌ لا يمكن البدء -- اصلح الأخطاء أعلاه");
+    return;
+  }
+
   Logger.log("═══════════════════════════════════════════");
-  Logger.log("🚀 بدء التطبيق القبلي (Pre-Test)");
+  Logger.log("🚀 بدء التطبيق القبلي (Pre-Test)" + (config.settings.dryRun ? " [DRY RUN]" : ""));
   Logger.log("📋 " + config.testInfo.title);
   Logger.log("═══════════════════════════════════════════");
+
+  // تهيئة مولد الأرقام العشوائية
+  initRng(config.settings.seed || null);
 
   // استخراج البيانات من الـ JSON
   const answers = extractAnswers(config);
@@ -184,14 +194,22 @@ function processQueue() {
   const now = new Date().getTime();
   let sent = 0;
 
+  const isDryRun = settings.dryRun === true;
+  const startTime = Date.now();
+  const MAX_RUNTIME_MS = 5 * 60 * 1000;  // 5 دقائق حد امان (GAS limit = 6 min)
   let form = null;
   let mcqItems = null;
 
   for (let i = 0; i < queue.length; i++) {
     if (queue[i].done || queue[i].time > now) continue;
     if (sent >= maxPerRun) break;
+    // حماية من تجاوز 6 دقائق
+    if (Date.now() - startTime > MAX_RUNTIME_MS) {
+      Logger.log("⏰ تم الايقاف المبكر -- اقتراب من حد الـ 6 دقائق");
+      break;
+    }
 
-    if (!form) {
+    if (!form && !isDryRun) {
       const formId = extractFormId(settings.formUrl);
       form = FormApp.openById(formId);
       mcqItems = getMCQItems(form);
@@ -240,7 +258,7 @@ function processQueue() {
       getGradeEmoji(result.score / answers.length * 100));
 
     if (sent < maxPerRun) {
-      Utilities.sleep(sleepMinMs + Math.floor(Math.random() * sleepExtraMaxMs));
+      Utilities.sleep(sleepMinMs + Math.floor(rng() * sleepExtraMaxMs));
     }
   }
 
@@ -276,6 +294,21 @@ function processQueue() {
       Logger.log("\n✅✅✅ التطبيق البعدي اكتمل! ✅✅✅");
       printPhaseReport(scores, qCorrect, config, 'البعدي');
       printFinalReport(preScores, scores, preQCorrect, qCorrect, profiles, config, preDetails, postDetails);
+
+      // اشعار بالبريد
+      try {
+        const email = Session.getActiveUser().getEmail();
+        if (email) {
+          MailApp.sendEmail(email,
+            "✅ المحاكاة اكتملت - " + (config.testInfo ? config.testInfo.title : ""),
+            "تم إرسال " + profiles.length + " رد (قبلي + بعدي).\n\n" +
+            "شغّل exportToSheet() لتصدير النتائج في Google Sheet.\n" +
+            "أو شغّل checkStatus() لعرض الحالة.");
+          Logger.log("📧 تم إرسال إشعار بالبريد الإلكتروني");
+        }
+      } catch (mailErr) {
+        Logger.log("⚠️ لم يتم إرسال البريد: " + mailErr.message);
+      }
     }
   } else if (sent > 0) {
     Logger.log("📊 تم: " + scores.length + " | متبقي: " + remaining);

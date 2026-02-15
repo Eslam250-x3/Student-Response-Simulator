@@ -34,12 +34,45 @@ function extractFormId(url) {
   throw new Error("Can't extract Form ID: " + url);
 }
 
+// ═══════════════════════════════
+//  Seeded PRNG (Mulberry32)
+//  لو seed = null/undefined يستخدم Math.random
+// ═══════════════════════════════
+let _rngFunc = null;
+
+/**
+ * تهيئة مولد الأرقام العشوائية
+ * @param {number|null} seed - رقم seed (null = عشوائي)
+ */
+function initRng(seed) {
+  if (seed !== null && seed !== undefined) {
+    let s = seed | 0;
+    _rngFunc = function () {
+      s |= 0; s = s + 0x6D2B79F5 | 0;
+      let t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+    Logger.log("🌱 Seed: " + seed + " (نتائج قابلة للتكرار)");
+  } else {
+    _rngFunc = null;
+  }
+}
+
+/**
+ * رقم عشوائي [0,1) -- يستخدم seed لو موجود
+ * @returns {number}
+ */
+function rng() {
+  return _rngFunc ? _rngFunc() : Math.random();
+}
+
 /**
  * رقم عشوائي من التوزيع الطبيعي المعياري (Box-Muller)
  * @returns {number}
  */
 function normalRandom() {
-  const u1 = Math.random(), u2 = Math.random();
+  const u1 = rng(), u2 = rng();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
@@ -118,6 +151,78 @@ function estimatePValue(t, df, requiredTValue) {
   return "> 0.05 ❌";
 }
 
+/**
+ * التحقق من صحة الاعدادات وبيانات الطالبات
+ * @param {Object} config
+ * @returns {{valid: boolean, errors: string[]}}
+ */
+function validateConfig(config) {
+  const errors = [];
+
+  // التحقق من formUrl
+  if (!config.settings || !config.settings.formUrl) {
+    errors.push("formUrl مفقود في الاعدادات");
+  } else if (config.settings.formUrl === "https://docs.google.com/forms/d/FORM_ID_HERE/edit") {
+    if (!config.settings.dryRun) {
+      errors.push("formUrl لم يتم تعديله -- ضع رابط الفورم الحقيقي أو فعّل dryRun");
+    }
+  }
+
+  // التحقق من الأسئلة
+  if (!config.questions || !config.questions.length) {
+    errors.push("لا توجد أسئلة في الاعدادات");
+  }
+
+  // التحقق من الطالبات
+  const students = getStudents();
+  if (!students || !students.length) {
+    errors.push("لا يوجد طالبات في students.js");
+  } else {
+    // التحقق من عدم تكرار الـ IDs
+    const ids = {};
+    for (let i = 0; i < students.length; i++) {
+      if (ids[students[i].id]) {
+        errors.push("ID مكرر: " + students[i].id);
+      }
+      ids[students[i].id] = true;
+
+      if (!students[i].email) {
+        errors.push("ايميل مفقود للطالبة: " + students[i].id);
+      }
+      if (!students[i].group) {
+        errors.push("مجموعة مفقودة للطالبة: " + students[i].id);
+      }
+    }
+
+    // التحقق من توزيع المجموعات
+    if (config.settings.groups) {
+      const groupCounts = {};
+      for (let i = 0; i < students.length; i++) {
+        groupCounts[students[i].group] = (groupCounts[students[i].group] || 0) + 1;
+      }
+      for (const gKey in config.settings.groups) {
+        const expected = config.settings.groups[gKey].count;
+        const actual = groupCounts[gKey] || 0;
+        if (actual !== expected) {
+          errors.push("المجموعة " + gKey + ": متوقع " + expected + " لكن وجد " + actual);
+        }
+      }
+    }
+  }
+
+  if (errors.length) {
+    Logger.log("❌ أخطاء في التحقق:");
+    for (let i = 0; i < errors.length; i++) {
+      Logger.log("   " + (i + 1) + ". " + errors[i]);
+    }
+  } else {
+    Logger.log("✅ التحقق من الاعدادات: كل شيء سليم");
+  }
+
+  return { valid: errors.length === 0, errors: errors };
+}
+
+
 // ═══════════════════════════════
 //  أدوات التحكم
 // ═══════════════════════════════
@@ -145,7 +250,12 @@ function checkStatus() {
   const scoreKey = phase + '_SCORES';
   const scores = JSON.parse(props.getProperty(scoreKey) || '[]');
   if (scores.length > 0) {
-    Logger.log("📊 المتوسط: " + (average(scores) / 30 * 100).toFixed(1) + "%");
+    let numQ = 30;
+    try {
+      const cfg = JSON.parse(props.getProperty('CONFIG') || '{}');
+      if (cfg.questions) numQ = cfg.questions.length;
+    } catch (e) { /* fallback to 30 */ }
+    Logger.log("📊 المتوسط: " + (average(scores) / numQ * 100).toFixed(1) + "%");
   }
 
   Logger.log("⏱️ مؤقتات: " + ScriptApp.getProjectTriggers().length);

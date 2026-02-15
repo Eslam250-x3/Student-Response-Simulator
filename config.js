@@ -9,7 +9,9 @@ function getTestConfig() {
   
       "settings": {
         "formUrl": "https://docs.google.com/forms/d/FORM_ID_HERE/edit",
-        "numStudents": 80,
+        "numStudents": 80,        // (deprecated -- العدد يؤخذ من students.js تلقائيا)
+        "dryRun": false,          // true = محاكاة بدون ارسال فعلي للفورم (للاختبار)
+        "seed": null,             // رقم seed اختياري للتكرارية (null = عشوائي)
         "timezone": "Africa/Cairo",
         "triggerIntervalMinutes": 5,
   
@@ -45,9 +47,8 @@ function getTestConfig() {
           "consistencyMax": 0.95,
           "fatigueMax": 0.12,
           "fatigueStartQuestion": 20,
-          "guessingBase": 0.25,
-          "skillWeight": 0.70,
-          "difficultyFactor": 0.5,
+          "guessingBase": 0.25,       // c parameter في نموذج 3PL IRT (احتمال التخمين)
+          "discrimination": 1.7,      // a parameter في نموذج 3PL IRT (تمييز السؤال)
           "consistencyFactor": 0.25,
           "probMin": 0.08,
           "probMax": 0.96,

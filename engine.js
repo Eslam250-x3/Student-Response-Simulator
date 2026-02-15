@@ -61,8 +61,8 @@ function generateProfiles(settings) {
       preSkill: preSkill,
       postSkill: postSkill,
       improvement: postSkill - preSkill,
-      consistency: beh.consistencyMin + Math.random() * (beh.consistencyMax - beh.consistencyMin),
-      fatigue: Math.random() * beh.fatigueMax
+      consistency: beh.consistencyMin + rng() * (beh.consistencyMax - beh.consistencyMin),
+      fatigue: rng() * beh.fatigueMax
     });
   }
 
@@ -82,62 +82,85 @@ function generateProfiles(settings) {
  * @returns {{score: number, correct: number[]}}
  */
 function submitResponse(form, mcqItems, student, answers, config) {
-  const response = form.createResponse();
+  const isDryRun = config.settings.dryRun === true;
+  const beh = config.settings.studentBehavior;
+  const numQ = answers.length;
+  const numChoices = (config.testInfo && config.testInfo.choicesPerQuestion) || 4;
+  let response = null;
 
-  // ── ملء سؤال الإيميل (Short answer) ──
-  if (student.email) {
-    const emailIdx = (config.settings.emailSettings && config.settings.emailSettings.questionIndex !== undefined)
-      ? config.settings.emailSettings.questionIndex : 0;
-    const allItems = form.getItems();
-    if (emailIdx < allItems.length && allItems[emailIdx].getType() === FormApp.ItemType.TEXT) {
-      const emailItem = allItems[emailIdx].asTextItem();
-      response.withItemResponse(emailItem.createResponse(student.email));
+  if (!isDryRun) {
+    response = form.createResponse();
+    // ── ملء سؤال الإيميل (Short answer) ──
+    if (student.email) {
+      const emailIdx = (config.settings.emailSettings && config.settings.emailSettings.questionIndex !== undefined)
+        ? config.settings.emailSettings.questionIndex : 0;
+      const allItems = form.getItems();
+      if (emailIdx < allItems.length && allItems[emailIdx].getType() === FormApp.ItemType.TEXT) {
+        const emailItem = allItems[emailIdx].asTextItem();
+        response.withItemResponse(emailItem.createResponse(student.email));
+      }
     }
   }
 
   let score = 0;
   const correctArr = [];
-  const beh = config.settings.studentBehavior;
 
-  for (let q = 0; q < mcqItems.length; q++) {
-    const item = mcqItems[q];
-    const choices = item.getChoices();
+  for (let q = 0; q < numQ; q++) {
     const ans = answers[q];
+    const choicesCount = (!isDryRun && mcqItems[q]) ? mcqItems[q].getChoices().length : numChoices;
 
-    const skillW = beh.skillWeight || 0.70;
-    const diffF = beh.difficultyFactor || 0.5;
+    // ── 3PL IRT Model ──
+    const guess = beh.guessingBase || 0.25;
+    const disc = beh.discrimination || 1.7;
+    const theta = student.skill * 4 - 2;  // تحويل skill [0,1] الى theta [-2,2]
+    const diff_b = (ans.difficulty - 0.5) * 4; // تحويل difficulty [0,1] الى b [-2,2]
+
+    let prob = guess + (1 - guess) / (1 + Math.exp(-disc * (theta - diff_b)));
+
+    // تعديل الاتساق والارهاق
     const consF = beh.consistencyFactor || 0.25;
-    const probMin = beh.probMin || 0.08;
-    const probMax = beh.probMax || 0.96;
-    let prob = beh.guessingBase +
-      skillW * student.skill * (1 - ans.difficulty * diffF) +
-      (Math.random() - 0.5) * (1 - student.consistency) * consF;
+    prob += (rng() - 0.5) * (1 - student.consistency) * consF;
 
-    if (q > beh.fatigueStartQuestion) {
-      prob *= (1 - student.fatigue * (q - beh.fatigueStartQuestion) / 10);
+    if (q > (beh.fatigueStartQuestion || 20)) {
+      prob *= (1 - student.fatigue * (q - (beh.fatigueStartQuestion || 20)) / 10);
     }
 
-    prob = clamp(prob, probMin, probMax);
+    prob = clamp(prob, beh.probMin || 0.08, beh.probMax || 0.96);
 
     let chosenIdx;
-    if (Math.random() < prob) {
+    if (rng() < prob) {
       chosenIdx = ans.correct;
       score++;
       correctArr.push(1);
     } else {
-      chosenIdx = pickWrong(ans.correct, choices.length, ans.attractiveWrong, student.skill, beh);
+      chosenIdx = pickWrong(ans.correct, choicesCount, ans.attractiveWrong, student.skill, beh);
       correctArr.push(0);
     }
 
-    response.withItemResponse(item.createResponse(choices[chosenIdx].getValue()));
+    if (!isDryRun && mcqItems[q]) {
+      const choices = mcqItems[q].getChoices();
+      response.withItemResponse(mcqItems[q].createResponse(choices[chosenIdx].getValue()));
+    }
   }
 
-  try {
-    response.submit();
-  } catch (e) {
-    Logger.log("❌ فشل إرسال الرد: " + e.message);
-    throw e;
+  if (!isDryRun) {
+    // Retry with exponential backoff (3 attempts)
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        response.submit();
+        break;
+      } catch (e) {
+        if (attempt === maxRetries) {
+          Logger.log("❌ فشل إرسال الرد بعد " + maxRetries + " محاولات: " + e.message);
+          throw e;
+        }
+        Logger.log("⚠️ محاولة " + attempt + " فشلت، إعادة المحاولة...");
+        Utilities.sleep(1000 * Math.pow(2, attempt));
+      }
+    }
   }
+
   return { score: score, correct: correctArr };
 }
 
@@ -151,11 +174,11 @@ function pickWrong(correctIdx, numChoices, attractiveIdx, skill, beh) {
   const attractSkillF = (beh && beh.attractSkillFactor) || 0.25;
   const attractProb = attractBase - skill * attractSkillF;
   if (attractiveIdx !== correctIdx && attractiveIdx >= 0 &&
-    attractiveIdx < numChoices && Math.random() < attractProb) {
+    attractiveIdx < numChoices && rng() < attractProb) {
     return attractiveIdx;
   }
 
-  return wrong[Math.floor(Math.random() * wrong.length)];
+  return wrong[Math.floor(rng() * wrong.length)];
 }
 
 function verifyStatisticalSignificance(profiles, numQ, config) {

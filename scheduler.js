@@ -33,15 +33,15 @@ function createSchedule(numStudents, numDays, startH, endH, minGap, tz) {
 
     const times = [];
     for (let s = 0; s < perDay[day]; s++) {
-      times.push(Math.floor(Math.random() * windowMin));
+      times.push(Math.floor(rng() * windowMin));
     }
     times.sort(function (a, b) { return a - b; });
 
     for (let s = 1; s < times.length; s++) {
       if (times[s] - times[s - 1] < minGap) {
-        times[s] = times[s - 1] + minGap + Math.floor(Math.random() * 6);
+        times[s] = times[s - 1] + minGap + Math.floor(rng() * 6);
         if (times[s] >= windowMin) {
-          times[s] = windowMin - 1 - Math.floor(Math.random() * 10);
+          times[s] = windowMin - 1 - Math.floor(rng() * 10);
         }
       }
     }
@@ -49,7 +49,7 @@ function createSchedule(numStudents, numDays, startH, endH, minGap, tz) {
     for (let s = 0; s < times.length; s++) {
       const dt = new Date(dayStart);
       dt.setMinutes(dt.getMinutes() + times[s]);
-      dt.setSeconds(Math.floor(Math.random() * 60));
+      dt.setSeconds(Math.floor(rng() * 60));
       schedule.push(dt);
     }
   }
@@ -64,7 +64,7 @@ function distributePerDay(total, days) {
 
   for (let d = 0; d < days - 1; d++) {
     const avg = remaining / (days - d);
-    const variance = Math.floor((Math.random() - 0.5) * avg * 0.4);
+    const variance = Math.floor((rng() - 0.5) * avg * 0.4);
     let count = Math.round(avg) + variance;
     count = Math.max(Math.floor(total * 0.2), count);
     count = Math.min(Math.ceil(total * 0.45), count);
