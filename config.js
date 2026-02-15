@@ -10,7 +10,7 @@ function getTestConfig() {
       "settings": {
         "formUrl": "https://docs.google.com/forms/d/FORM_ID_HERE/edit",
         "numStudents": 80,        // (deprecated -- العدد يؤخذ من students.js تلقائيا)
-        "dryRun": false,          // true = محاكاة بدون ارسال فعلي للفورم (للاختبار)
+        "dryRun": true,           // true = محاكاة بدون ارسال فعلي للفورم (للاختبار)
         "seed": null,             // رقم seed اختياري للتكرارية (null = عشوائي)
         "timezone": "Africa/Cairo",
         "triggerIntervalMinutes": 5,
