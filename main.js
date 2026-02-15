@@ -8,10 +8,13 @@
 // ║    من ملف JSON في Drive              ║
 // ║    سيبه فاضي = استخدم الافتراضي      ║
 // ╚═══════════════════════════════════════╝
-var CONFIG_FILE_ID = ""; // اختياري
+const CONFIG_FILE_ID = ""; // اختياري
 
 
-// ── تحميل الإعدادات ──
+/**
+ * تحميل الإعدادات من Drive أو الافتراضي
+ * @returns {Object} كائن الإعدادات
+ */
 function loadConfig() {
   if (CONFIG_FILE_ID && CONFIG_FILE_ID.length > 10) {
     return loadConfigFromDrive(CONFIG_FILE_ID);
@@ -20,13 +23,13 @@ function loadConfig() {
 }
 
 
-// ═══════════════════════════════════════
-//  1️⃣  بدء التطبيق القبلي
-// ═══════════════════════════════════════
+/**
+ * بدء التطبيق القبلي - توليد البروفايلات والجدولة
+ */
 function runPreTest() {
-  var config = loadConfig();
-  var props = PropertiesService.getScriptProperties();
-  var state = props.getProperty('STATE') || 'IDLE';
+  const config = loadConfig();
+  const props = PropertiesService.getScriptProperties();
+  const state = props.getProperty('STATE') || 'IDLE';
 
   if (state === 'PRE_RUNNING' || state === 'POST_RUNNING') {
     Logger.log("❌ فيه محاكاة شغالة! استخدم checkStatus() أو stopSimulation()");
@@ -39,18 +42,19 @@ function runPreTest() {
   Logger.log("═══════════════════════════════════════════");
 
   // استخراج البيانات من الـ JSON
-  var answers = extractAnswers(config);
-  var settings = config.settings;
+  const answers = extractAnswers(config);
+  const settings = config.settings;
 
-  // توليد بروفايلات الطلاب
-  var profiles = generateProfiles(settings);
+  // توليد بروفايلات الطلاب (العدد يؤخذ من students.js)
+  const profiles = generateProfiles(settings);
+  const numStudents = profiles.length;
 
   // التحقق الإحصائي
-  verifyStatisticalSignificance(profiles, answers.length);
+  verifyStatisticalSignificance(profiles, answers.length, config);
 
   // إنشاء الجدول الزمني
-  var schedule = createSchedule(
-    settings.numStudents,
+  const schedule = createSchedule(
+    numStudents,
     settings.schedule.numDays,
     settings.schedule.startHour,
     settings.schedule.endHour,
@@ -59,7 +63,7 @@ function runPreTest() {
   );
 
   // إنشاء قائمة الانتظار
-  var queue = buildQueue(settings.numStudents, schedule);
+  const queue = buildQueue(numStudents, schedule, settings.timezone);
 
   // حفظ كل شيء
   props.setProperty('CONFIG', JSON.stringify(config));
@@ -69,6 +73,7 @@ function runPreTest() {
   props.setProperty('STATE', 'PRE_RUNNING');
   props.setProperty('PRE_SCORES', JSON.stringify([]));
   props.setProperty('PRE_Q_CORRECT', JSON.stringify(new Array(answers.length).fill(0)));
+  props.setProperty('PRE_DETAILS', JSON.stringify([]));  // تتبع تفصيلي لكل طالبة
 
   // عرض الجدول
   printScheduleSummary(queue, 'القبلي');
@@ -81,12 +86,12 @@ function runPreTest() {
 }
 
 
-// ═══════════════════════════════════════
-//  2️⃣  بدء التطبيق البعدي
-// ═══════════════════════════════════════
+/**
+ * بدء التطبيق البعدي - بعد اكتمال القبلي
+ */
 function runPostTest() {
-  var props = PropertiesService.getScriptProperties();
-  var state = props.getProperty('STATE') || 'IDLE';
+  const props = PropertiesService.getScriptProperties();
+  const state = props.getProperty('STATE') || 'IDLE';
 
   if (state === 'PRE_RUNNING' || state === 'POST_RUNNING') {
     Logger.log("❌ فيه محاكاة شغالة!");
@@ -98,17 +103,25 @@ function runPostTest() {
     return;
   }
 
-  var config = JSON.parse(props.getProperty('CONFIG'));
-  var profiles = JSON.parse(props.getProperty('PROFILES'));
-  var settings = config.settings;
-  var answers = extractAnswers(config);
+  let config, profiles;
+  try {
+    config = JSON.parse(props.getProperty('CONFIG'));
+    profiles = JSON.parse(props.getProperty('PROFILES'));
+  } catch (e) {
+    Logger.log("❌ خطأ في قراءة البيانات المحفوظة: " + e.message);
+    Logger.log("💡 جرّب resetAll() ثم runPreTest() من جديد");
+    return;
+  }
+  const settings = config.settings;
+  const answers = extractAnswers(config);
+  const numStudents = profiles.length;
 
   Logger.log("═══════════════════════════════════════════");
   Logger.log("🚀 بدء التطبيق البعدي (Post-Test)");
   Logger.log("═══════════════════════════════════════════");
 
-  var schedule = createSchedule(
-    settings.numStudents,
+  const schedule = createSchedule(
+    numStudents,
     settings.schedule.numDays,
     settings.schedule.startHour,
     settings.schedule.endHour,
@@ -116,13 +129,14 @@ function runPostTest() {
     settings.timezone
   );
 
-  var queue = buildQueue(settings.numStudents, schedule);
+  const queue = buildQueue(numStudents, schedule, settings.timezone);
 
   props.setProperty('QUEUE', JSON.stringify(queue));
   props.setProperty('PHASE', 'POST');
   props.setProperty('STATE', 'POST_RUNNING');
   props.setProperty('POST_SCORES', JSON.stringify([]));
   props.setProperty('POST_Q_CORRECT', JSON.stringify(new Array(answers.length).fill(0)));
+  props.setProperty('POST_DETAILS', JSON.stringify([]));  // تتبع تفصيلي لكل طالبة
 
   printScheduleSummary(queue, 'البعدي');
   setupTrigger(settings.triggerIntervalMinutes || 5);
@@ -131,39 +145,54 @@ function runPostTest() {
 }
 
 
-// ═══════════════════════════════════════
-//  ⏰  معالج قائمة الانتظار (تلقائي)
-// ═══════════════════════════════════════
+/**
+ * معالج قائمة الانتظار - يُستدعى تلقائياً بالـ Trigger
+ * يرسل ردود الطلاب حسب الجدول الزمني
+ */
 function processQueue() {
-  var props = PropertiesService.getScriptProperties();
-  var state = props.getProperty('STATE');
+  const props = PropertiesService.getScriptProperties();
+  const state = props.getProperty('STATE');
   if (state !== 'PRE_RUNNING' && state !== 'POST_RUNNING') return;
 
-  var config = JSON.parse(props.getProperty('CONFIG'));
-  var phase = props.getProperty('PHASE');
-  var profiles = JSON.parse(props.getProperty('PROFILES'));
-  var queue = JSON.parse(props.getProperty('QUEUE'));
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
 
-  var scoreKey = phase + '_SCORES';
-  var qKey = phase + '_Q_CORRECT';
-  var scores = JSON.parse(props.getProperty(scoreKey) || '[]');
-  var qCorrect = JSON.parse(props.getProperty(qKey) || '[]');
+  try {
+  let config, phase, profiles, queue, scores, qCorrect, details, scoreKey, qKey, detailKey;
+  try {
+    config = JSON.parse(props.getProperty('CONFIG'));
+    phase = props.getProperty('PHASE');
+    profiles = JSON.parse(props.getProperty('PROFILES'));
+    queue = JSON.parse(props.getProperty('QUEUE'));
+    scoreKey = phase + '_SCORES';
+    qKey = phase + '_Q_CORRECT';
+    detailKey = phase + '_DETAILS';
+    scores = JSON.parse(props.getProperty(scoreKey) || '[]');
+    qCorrect = JSON.parse(props.getProperty(qKey) || '[]');
+    details = JSON.parse(props.getProperty(detailKey) || '[]');
+  } catch (e) {
+    Logger.log("❌ خطأ في قراءة البيانات: " + e.message);
+    return;
+  }
 
-  var answers = extractAnswers(config);
-  var settings = config.settings;
-  var now = new Date().getTime();
-  var sent = 0;
-  var maxPerRun = 8;
+  const answers = extractAnswers(config);
+  const settings = config.settings;
+  const queueProc = settings.queueProcessing || {};
+  const maxPerRun = queueProc.maxPerRun || 8;
+  const sleepMinMs = queueProc.sleepMinMs || 1500;
+  const sleepExtraMaxMs = queueProc.sleepExtraMaxMs || 3000;
+  const now = new Date().getTime();
+  let sent = 0;
 
-  var form = null;
-  var mcqItems = null;
+  let form = null;
+  let mcqItems = null;
 
-  for (var i = 0; i < queue.length; i++) {
+  for (let i = 0; i < queue.length; i++) {
     if (queue[i].done || queue[i].time > now) continue;
     if (sent >= maxPerRun) break;
 
     if (!form) {
-      var formId = extractFormId(settings.formUrl);
+      const formId = extractFormId(settings.formUrl);
       form = FormApp.openById(formId);
       mcqItems = getMCQItems(form);
 
@@ -174,33 +203,44 @@ function processQueue() {
       }
     }
 
-    var skill = (phase === 'PRE') ? profiles[queue[i].idx].preSkill
+    const skill = (phase === 'PRE') ? profiles[queue[i].idx].preSkill
       : profiles[queue[i].idx].postSkill;
 
-    var result = submitResponse(form, mcqItems, {
+    const result = submitResponse(form, mcqItems, {
       skill: skill,
       consistency: profiles[queue[i].idx].consistency,
-      fatigue: profiles[queue[i].idx].fatigue
+      fatigue: profiles[queue[i].idx].fatigue,
+      email: profiles[queue[i].idx].email
     }, answers, config);
 
     queue[i].done = true;
     queue[i].score = result.score;
     scores.push(result.score);
 
-    for (var q = 0; q < result.correct.length; q++) {
+    for (let q = 0; q < result.correct.length; q++) {
       qCorrect[q] = (qCorrect[q] || 0) + result.correct[q];
     }
 
+    // حفظ بيانات تفصيلية لكل طالبة (مضغوطة لتجنب حد 9KB)
+    // correct array يُخزن كـ string "110100..." بدل [1,1,0,1,0,0,...]
+    details.push({
+      id: profiles[queue[i].idx].id,
+      group: profiles[queue[i].idx].group,
+      score: result.score,
+      c: result.correct.join("")
+    });
+
     sent++;
-    var phaseName = (phase === 'PRE') ? 'قبلي' : 'بعدي';
+    const phaseName = (phase === 'PRE') ? 'قبلي' : 'بعدي';
+    const prof = profiles[queue[i].idx];
     Logger.log("👤 [" + phaseName + "] " + padNum(scores.length, 2) + "/" +
-      settings.numStudents + " | " + profiles[queue[i].idx].id +
-      " | " + result.score + "/" + answers.length +
+      profiles.length + " | " + prof.id + " [" + prof.group + "] " +
+      prof.name + " | " + result.score + "/" + answers.length +
       " (" + (result.score / answers.length * 100).toFixed(0) + "%) " +
       getGradeEmoji(result.score / answers.length * 100));
 
     if (sent < maxPerRun) {
-      Utilities.sleep(1500 + Math.floor(Math.random() * 3000));
+      Utilities.sleep(sleepMinMs + Math.floor(Math.random() * sleepExtraMaxMs));
     }
   }
 
@@ -208,9 +248,10 @@ function processQueue() {
   props.setProperty('QUEUE', JSON.stringify(queue));
   props.setProperty(scoreKey, JSON.stringify(scores));
   props.setProperty(qKey, JSON.stringify(qCorrect));
+  props.setProperty(detailKey, JSON.stringify(details));
 
   // التحقق من الاكتمال
-  var remaining = queue.filter(function (q) { return !q.done; }).length;
+  const remaining = queue.filter(function (q) { return !q.done; }).length;
 
   if (remaining === 0) {
     cleanupTriggers();
@@ -222,13 +263,24 @@ function processQueue() {
       Logger.log("\n💡 الخطوة التالية: شغّل runPostTest()");
     } else {
       props.setProperty('STATE', 'POST_DONE');
-      var preScores = JSON.parse(props.getProperty('PRE_SCORES') || '[]');
-      var preQCorrect = JSON.parse(props.getProperty('PRE_Q_CORRECT') || '[]');
+      let preScores, preQCorrect, preDetails, postDetails;
+      try {
+        preScores = JSON.parse(props.getProperty('PRE_SCORES') || '[]');
+        preQCorrect = JSON.parse(props.getProperty('PRE_Q_CORRECT') || '[]');
+        preDetails = JSON.parse(props.getProperty('PRE_DETAILS') || '[]');
+        postDetails = details;
+      } catch (e) {
+        Logger.log("❌ خطأ في قراءة نتائج القبلي: " + e.message);
+        return;
+      }
       Logger.log("\n✅✅✅ التطبيق البعدي اكتمل! ✅✅✅");
       printPhaseReport(scores, qCorrect, config, 'البعدي');
-      printFinalReport(preScores, scores, preQCorrect, qCorrect, profiles, config);
+      printFinalReport(preScores, scores, preQCorrect, qCorrect, profiles, config, preDetails, postDetails);
     }
   } else if (sent > 0) {
     Logger.log("📊 تم: " + scores.length + " | متبقي: " + remaining);
+  }
+  } finally {
+    lock.releaseLock();
   }
 }

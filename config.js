@@ -45,7 +45,41 @@ function getTestConfig() {
           "consistencyMax": 0.95,
           "fatigueMax": 0.12,
           "fatigueStartQuestion": 20,
-          "guessingBase": 0.25
+          "guessingBase": 0.25,
+          "skillWeight": 0.70,
+          "difficultyFactor": 0.5,
+          "consistencyFactor": 0.25,
+          "probMin": 0.08,
+          "probMax": 0.96,
+          "attractBase": 0.55,
+          "attractSkillFactor": 0.25
+        },
+
+        "groups": {
+          "G1": { "name": "تنافسي بدون ضغط زمني", "count": 20 },
+          "G2": { "name": "تنافسي بضغط زمني",     "count": 20 },
+          "G3": { "name": "تعاوني بدون ضغط زمني",  "count": 20 },
+          "G4": { "name": "تعاوني بضغط زمني",      "count": 20 }
+        },
+
+        // تأثير كل مجموعة على معدل التحسن (يُضاف لـ improvement.base)
+        // القيم مبنية على فرضية أن التعاوني أفضل من التنافسي
+        // والضغط الزمني يقلل التحسن
+        "groupEffects": {
+          "G1": { "improvementBonus": 0.04,  "skillSpreadMod": 0.0  },
+          "G2": { "improvementBonus": -0.02, "skillSpreadMod": 0.02 },
+          "G3": { "improvementBonus": 0.08,  "skillSpreadMod": -0.01 },
+          "G4": { "improvementBonus": 0.02,  "skillSpreadMod": 0.01 }
+        },
+
+        "emailSettings": {
+          "questionIndex": 0
+        },
+
+        "queueProcessing": {
+          "maxPerRun": 8,
+          "sleepMinMs": 1500,
+          "sleepExtraMaxMs": 3000
         },
   
         "statisticalTarget": {
@@ -759,9 +793,9 @@ function getTestConfig() {
   
   // حفظ كملف JSON في Drive
   function saveConfigToDrive() {
-    var config = getTestConfig();
-    var json = JSON.stringify(config, null, 2);
-    var file = DriveApp.createFile('test_config.json', json, 'application/json');
+    const config = getTestConfig();
+    const json = JSON.stringify(config, null, 2);
+    const file = DriveApp.createFile('test_config.json', json, 'application/json');
     Logger.log("✅ تم الحفظ: " + file.getUrl());
     Logger.log("🆔 ID: " + file.getId());
     return file.getId();
@@ -770,7 +804,7 @@ function getTestConfig() {
   // تحميل من Drive
   function loadConfigFromDrive(fileId) {
     try {
-      var file = DriveApp.getFileById(fileId);
+      const file = DriveApp.getFileById(fileId);
       return JSON.parse(file.getBlob().getDataAsString());
     } catch (e) {
       Logger.log("❌ خطأ: " + e.message);
