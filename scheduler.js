@@ -11,17 +11,25 @@
  * @param {number} endH - ساعة النهاية
  * @param {number} minGap - الحد الأدنى بين الردود (دقائق)
  * @param {string} [tz] - المنطقة الزمنية
+ * @param {boolean} [startFromNow] - true = يبدأ من وقت التشغيل (غير مرتبط بوقت محدد)
  * @returns {Date[]}
  */
-function createSchedule(numStudents, numDays, startH, endH, minGap, tz) {
+function createSchedule(numStudents, numDays, startH, endH, minGap, tz, startFromNow) {
   const now = new Date();
   const firstDay = new Date(now);
   firstDay.setSeconds(0, 0);
 
-  if (now.getHours() >= endH) {
-    firstDay.setDate(firstDay.getDate() + 1);
+  if (startFromNow) {
+    // يبدأ من وقت التشغيل مباشرة (دقيقة واحدة من الآن)
+    firstDay.setTime(now.getTime());
+    firstDay.setSeconds(0, 0);
+    firstDay.setMinutes(firstDay.getMinutes() + 1);
+  } else {
+    if (now.getHours() >= endH) {
+      firstDay.setDate(firstDay.getDate() + 1);
+    }
+    firstDay.setHours(startH, 0, 0, 0);
   }
-  firstDay.setHours(startH, 0, 0, 0);
 
   const perDay = distributePerDay(numStudents, numDays);
   const windowMin = (endH - startH) * 60;

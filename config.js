@@ -18,8 +18,9 @@ function getTestConfig() {
         "schedule": {
           "startHour": 12,
           "endHour": 21,
-          "numDays": 3,
-          "minGapMinutes": 4
+          "numDays": 1,
+          "minGapMinutes": 4,
+          "startFromNow": true
         },
   
         "preTest": {

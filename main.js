@@ -69,7 +69,8 @@ function runPreTest() {
     settings.schedule.startHour,
     settings.schedule.endHour,
     settings.schedule.minGapMinutes,
-    settings.timezone
+    settings.timezone,
+    settings.schedule.startFromNow || false
   );
 
   // إنشاء قائمة الانتظار
@@ -136,7 +137,8 @@ function runPostTest() {
     settings.schedule.startHour,
     settings.schedule.endHour,
     settings.schedule.minGapMinutes,
-    settings.timezone
+    settings.timezone,
+    settings.schedule.startFromNow || false
   );
 
   const queue = buildQueue(numStudents, schedule, settings.timezone);
