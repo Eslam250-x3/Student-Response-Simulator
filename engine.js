@@ -181,6 +181,143 @@ function pickWrong(correctIdx, numChoices, attractiveIdx, skill, beh) {
   return wrong[Math.floor(rng() * wrong.length)];
 }
 
+// ════════════════════════════════════════════════════════════════
+//  مقياس التدفق النفسي - توليد البروفايلات والاستجابة
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * توليد مستويات التدفق (قبلي وبعدي) لكل طالب
+ * تُضاف كحقول preFlowLevel/postFlowLevel على البروفايل الموجود
+ * @param {Object} flowConfig - إعدادات مقياس التدفق
+ * @param {Object[]} baseProfiles - بروفايلات الطلاب من generateProfiles()
+ * @returns {Object[]} نفس المصفوفة مع إضافة flowLevel
+ */
+function generateFlowProfiles(flowConfig, baseProfiles) {
+  const groupFx = flowConfig.groupEffects || {};
+  const pre = flowConfig.preFlow;
+  const post = flowConfig.postFlow;
+  const imp = flowConfig.improvement;
+  const beh = flowConfig.responseBehavior || {};
+
+  for (let i = 0; i < baseProfiles.length; i++) {
+    const p = baseProfiles[i];
+    const fx = groupFx[p.group] || { improvementBonus: 0 };
+
+    // مستوى التدفق القبلي (توزيع طبيعي)
+    const z1 = normalRandom();
+    let preFlow = pre.meanFlow + z1 * pre.flowSpread;
+    preFlow = clamp(preFlow, pre.minFlow, pre.maxFlow);
+
+    // التحسن في التدفق بعد التدخل
+    const z2 = normalRandom();
+    const weakBonus = imp.weakBonus || 0.4;
+    const skillFactor = 1 + (pre.meanFlow - preFlow) * weakBonus;
+    const groupBonus = fx.improvementBonus || 0;
+    let improvement = (imp.base + groupBonus) * skillFactor + z2 * imp.variation;
+    improvement = clamp(improvement, 0.03, 0.45);
+
+    let postFlow = preFlow + improvement;
+    postFlow = clamp(postFlow, post.minFlow, post.maxFlow);
+
+    // معامل الاتساق لهذا الطالب في الاستجابة
+    const consMin = beh.consistencyMin || 0.55;
+    const consMax = beh.consistencyMax || 0.95;
+    const flowConsistency = consMin + rng() * (consMax - consMin);
+
+    p.preFlowLevel  = preFlow;
+    p.postFlowLevel = postFlow;
+    p.flowConsistency = flowConsistency;
+  }
+  return baseProfiles;
+}
+
+
+/**
+ * إرسال استجابة طالب واحد على مقياس التدفق (Likert)
+ * @param {GoogleAppsScript.Forms.Form|null} form
+ * @param {GoogleAppsScript.Forms.MultipleChoiceItem[]|null} likertItems
+ * @param {Object} student - يحتوي على flowLevel, email, flowConsistency
+ * @param {Object} flowConfig
+ * @param {boolean} isDryRun
+ * @returns {{totalScore: number, responses: number[]}}
+ */
+function submitFlowResponse(form, likertItems, student, flowConfig, isDryRun) {
+  const items      = flowConfig.items;
+  const negSet     = {};
+  const negList    = flowConfig.negativeItems || [];
+  for (let k = 0; k < negList.length; k++) negSet[negList[k]] = true;
+
+  const noise      = (flowConfig.responseBehavior && flowConfig.responseBehavior.noiseLevel) || 0.18;
+  const flowLevel  = student.flowLevel;
+  const consistency = student.flowConsistency || 0.75;
+
+  let response = null;
+  if (!isDryRun && form) {
+    response = form.createResponse();
+
+    // ملء سؤال الإيميل
+    if (student.email) {
+      const emailIdx = (flowConfig.emailSettings && flowConfig.emailSettings.questionIndex !== undefined)
+        ? flowConfig.emailSettings.questionIndex : 0;
+      const allItems = form.getItems();
+      if (emailIdx < allItems.length && allItems[emailIdx].getType() === FormApp.ItemType.TEXT) {
+        response.withItemResponse(allItems[emailIdx].asTextItem().createResponse(student.email));
+      }
+    }
+  }
+
+  let totalScore = 0;
+  const responses = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const isNeg = negSet[item.id] || item.isNegative;
+
+    // احتساب الدرجة الفعلية المتوقعة (1-5) بعد العكس
+    // ضجيج يتأثر بمعامل الاتساق
+    const noiseAdj = noise * (1 - consistency);
+    const raw = flowLevel * 4 + 1 + (rng() - 0.5) * noiseAdj * 4;
+    const effectiveScore = Math.round(clamp(raw, 1, 5));
+
+    // الدرجة الخام التي تُختار في الفورم
+    // موجب: rawChoice = effectiveScore
+    // سالب:  rawChoice = 6 - effectiveScore  (عكس)
+    const rawChoice = isNeg ? (6 - effectiveScore) : effectiveScore;
+
+    // index في مصفوفة الخيارات: دائماً=0(5د), غالباً=1(4د), أحياناً=2(3د), نادراً=3(2د), أبداً=4(1د)
+    const choiceIndex = 5 - rawChoice; // 0=دائماً, ..., 4=أبداً
+
+    responses.push(rawChoice);
+    totalScore += effectiveScore; // الدرجة بعد العكس
+
+    if (!isDryRun && form && likertItems && likertItems[i]) {
+      const choices = likertItems[i].getChoices();
+      const safeIdx = clamp(choiceIndex, 0, choices.length - 1);
+      response.withItemResponse(likertItems[i].createResponse(choices[safeIdx].getValue()));
+    }
+  }
+
+  if (!isDryRun && form && response) {
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        response.submit();
+        break;
+      } catch (e) {
+        if (attempt === maxRetries) {
+          Logger.log("❌ [Flow] فشل إرسال الرد بعد " + maxRetries + " محاولات: " + e.message);
+          throw e;
+        }
+        Logger.log("⚠️ [Flow] محاولة " + attempt + " فشلت، إعادة المحاولة...");
+        Utilities.sleep(1000 * Math.pow(2, attempt));
+      }
+    }
+  }
+
+  return { totalScore: totalScore, responses: responses };
+}
+
+
 function verifyStatisticalSignificance(profiles, numQ, config) {
   const diffs = profiles.map(function (p) { return p.improvement; });
   const meanD = average(diffs);

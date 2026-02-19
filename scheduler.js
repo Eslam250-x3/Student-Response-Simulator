@@ -92,6 +92,9 @@ function distributePerDay(total, days) {
  * @returns {Object[]}
  */
 function buildQueue(numStudents, schedule, tz) {
+  if (!schedule || schedule.length < numStudents) {
+    throw new Error("جدول المواعيد غير كافٍ: " + (schedule ? schedule.length : 0) + " موعد لـ " + numStudents + " طالب");
+  }
   const tzStr = tz || "Africa/Cairo";
   const queue = [];
   for (let i = 0; i < numStudents; i++) {

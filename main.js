@@ -59,6 +59,10 @@ function runPreTest() {
   const profiles = generateProfiles(settings);
   const numStudents = profiles.length;
 
+  // توليد مستويات التدفق وإضافتها للبروفايلات
+  const flowConfig = getFlowConfig();
+  generateFlowProfiles(flowConfig, profiles);
+
   // التحقق الإحصائي
   verifyStatisticalSignificance(profiles, answers.length, config);
 
@@ -78,13 +82,15 @@ function runPreTest() {
 
   // حفظ كل شيء
   props.setProperty('CONFIG', JSON.stringify(config));
+  props.setProperty('FLOW_CONFIG', JSON.stringify(flowConfig));
   props.setProperty('PROFILES', JSON.stringify(profiles));
   props.setProperty('QUEUE', JSON.stringify(queue));
   props.setProperty('PHASE', 'PRE');
   props.setProperty('STATE', 'PRE_RUNNING');
   props.setProperty('PRE_SCORES', JSON.stringify([]));
   props.setProperty('PRE_Q_CORRECT', JSON.stringify(new Array(answers.length).fill(0)));
-  props.setProperty('PRE_DETAILS', JSON.stringify([]));  // تتبع تفصيلي لكل طالبة
+  props.setProperty('PRE_DETAILS', JSON.stringify([]));
+  props.setProperty('FLOW_PRE_SCORES', JSON.stringify([]));
 
   // عرض الجدول
   printScheduleSummary(queue, 'القبلي');
@@ -92,7 +98,10 @@ function runPreTest() {
   // إنشاء Trigger
   setupTrigger(settings.triggerIntervalMinutes || 5);
 
+  const flowActive = flowConfig.formUrl.indexOf('FLOW_FORM_ID_HERE') === -1;
   Logger.log("✅ تم البدء! الردود ستتبعت تلقائياً حسب الجدول");
+  Logger.log("📋 MCQ: " + (settings.dryRun ? "DRY RUN" : "إرسال حقيقي"));
+  Logger.log("📊 مقياس التدفق: " + (flowActive ? "إرسال حقيقي" : "لم يُضبط الرابط بعد - سيتم التخطي"));
   Logger.log("💡 تابع بـ: checkStatus()");
 }
 
@@ -148,7 +157,8 @@ function runPostTest() {
   props.setProperty('STATE', 'POST_RUNNING');
   props.setProperty('POST_SCORES', JSON.stringify([]));
   props.setProperty('POST_Q_CORRECT', JSON.stringify(new Array(answers.length).fill(0)));
-  props.setProperty('POST_DETAILS', JSON.stringify([]));  // تتبع تفصيلي لكل طالبة
+  props.setProperty('POST_DETAILS', JSON.stringify([]));
+  props.setProperty('FLOW_POST_SCORES', JSON.stringify([]));
 
   printScheduleSummary(queue, 'البعدي');
   setupTrigger(settings.triggerIntervalMinutes || 5);
@@ -170,18 +180,22 @@ function processQueue() {
   if (!lock.tryLock(10000)) return;
 
   try {
-  let config, phase, profiles, queue, scores, qCorrect, details, scoreKey, qKey, detailKey;
+  let config, flowConfig, phase, profiles, queue, scores, qCorrect, details, scoreKey, qKey, detailKey;
+  let flowScores, flowScoreKey;
   try {
     config = JSON.parse(props.getProperty('CONFIG'));
+    flowConfig = JSON.parse(props.getProperty('FLOW_CONFIG') || 'null');
     phase = props.getProperty('PHASE');
     profiles = JSON.parse(props.getProperty('PROFILES'));
     queue = JSON.parse(props.getProperty('QUEUE'));
     scoreKey = phase + '_SCORES';
     qKey = phase + '_Q_CORRECT';
     detailKey = phase + '_DETAILS';
+    flowScoreKey = 'FLOW_' + phase + '_SCORES';
     scores = JSON.parse(props.getProperty(scoreKey) || '[]');
     qCorrect = JSON.parse(props.getProperty(qKey) || '[]');
     details = JSON.parse(props.getProperty(detailKey) || '[]');
+    flowScores = JSON.parse(props.getProperty(flowScoreKey) || '[]');
   } catch (e) {
     Logger.log("❌ خطأ في قراءة البيانات: " + e.message);
     return;
@@ -202,6 +216,14 @@ function processQueue() {
   let form = null;
   let mcqItems = null;
 
+  // مقياس التدفق
+  const flowActive = flowConfig &&
+    flowConfig.formUrl &&
+    flowConfig.formUrl.indexOf('FLOW_FORM_ID_HERE') === -1 &&
+    !isDryRun;
+  let flowForm = null;
+  let likertItems = null;
+
   for (let i = 0; i < queue.length; i++) {
     if (queue[i].done || queue[i].time > now) continue;
     if (sent >= maxPerRun) break;
@@ -219,22 +241,56 @@ function processQueue() {
       if (mcqItems.length !== answers.length) {
         Logger.log("❌ عدد الأسئلة (" + mcqItems.length +
           ") ≠ عدد الإجابات (" + answers.length + ")");
+        Logger.log("💡 عدّل config.questions ليطابق الفورم، أو استخدم resetAll() ثم runPreTest() من جديد");
+        cleanupTriggers();
+        props.setProperty('STATE', phase + '_ERROR');
         return;
       }
     }
 
-    const skill = (phase === 'PRE') ? profiles[queue[i].idx].preSkill
-      : profiles[queue[i].idx].postSkill;
+    const prof = profiles[queue[i].idx];
+    const skill = (phase === 'PRE') ? prof.preSkill : prof.postSkill;
 
+    // ── إرسال رد MCQ ──
     const result = submitResponse(form, mcqItems, {
       skill: skill,
-      consistency: profiles[queue[i].idx].consistency,
-      fatigue: profiles[queue[i].idx].fatigue,
-      email: profiles[queue[i].idx].email
+      consistency: prof.consistency,
+      fatigue: prof.fatigue,
+      email: prof.email
     }, answers, config);
+
+    // ── إرسال رد مقياس التدفق (نفس الطالب، نفس الوقت) ──
+    let flowScore = -1;
+    if (flowConfig) {
+      if (flowActive) {
+        if (!flowForm) {
+          flowForm = FormApp.openById(extractFormId(flowConfig.formUrl));
+          likertItems = getLikertItems(flowForm);
+          if (likertItems.length !== flowConfig.items.length) {
+            Logger.log("⚠️ [Flow] عدد عبارات الفورم (" + likertItems.length +
+              ") ≠ عدد عبارات الإعداد (" + flowConfig.items.length + ") -- سيتم تخطي المقياس");
+            flowForm = null;
+            likertItems = null;
+          }
+        }
+      }
+      const flowLevel = (phase === 'PRE') ? prof.preFlowLevel : prof.postFlowLevel;
+      if (flowLevel !== undefined) {
+        const flowResult = submitFlowResponse(
+          flowActive ? flowForm : null,
+          flowActive ? likertItems : null,
+          { flowLevel: flowLevel, email: prof.email, flowConsistency: prof.flowConsistency },
+          flowConfig,
+          isDryRun || !flowActive
+        );
+        flowScore = flowResult.totalScore;
+        flowScores.push(flowScore);
+      }
+    }
 
     queue[i].done = true;
     queue[i].score = result.score;
+    queue[i].flowScore = flowScore;
     scores.push(result.score);
 
     for (let q = 0; q < result.correct.length; q++) {
@@ -244,20 +300,21 @@ function processQueue() {
     // حفظ بيانات تفصيلية لكل طالبة (مضغوطة لتجنب حد 9KB)
     // correct array يُخزن كـ string "110100..." بدل [1,1,0,1,0,0,...]
     details.push({
-      id: profiles[queue[i].idx].id,
-      group: profiles[queue[i].idx].group,
+      id: prof.id,
+      group: prof.group,
       score: result.score,
+      flowScore: flowScore,
       c: result.correct.join("")
     });
 
     sent++;
     const phaseName = (phase === 'PRE') ? 'قبلي' : 'بعدي';
-    const prof = profiles[queue[i].idx];
+    const flowStr = flowScore >= 0 ? " | تدفق: " + flowScore + "/280" : "";
     Logger.log("👤 [" + phaseName + "] " + padNum(scores.length, 2) + "/" +
       profiles.length + " | " + prof.id + " [" + prof.group + "] " +
       prof.name + " | " + result.score + "/" + answers.length +
       " (" + (result.score / answers.length * 100).toFixed(0) + "%) " +
-      getGradeEmoji(result.score / answers.length * 100));
+      getGradeEmoji(result.score / answers.length * 100) + flowStr);
 
     if (sent < maxPerRun) {
       Utilities.sleep(sleepMinMs + Math.floor(rng() * sleepExtraMaxMs));
@@ -269,6 +326,7 @@ function processQueue() {
   props.setProperty(scoreKey, JSON.stringify(scores));
   props.setProperty(qKey, JSON.stringify(qCorrect));
   props.setProperty(detailKey, JSON.stringify(details));
+  props.setProperty(flowScoreKey, JSON.stringify(flowScores));
 
   // التحقق من الاكتمال
   const remaining = queue.filter(function (q) { return !q.done; }).length;

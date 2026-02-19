@@ -19,6 +19,23 @@ function getMCQItems(form) {
 }
 
 /**
+ * استخراج عناصر Likert (اختيار من متعدد) من فورم المقياس
+ * مشابهة لـ getMCQItems لكن مخصصة لمقياس التدفق
+ * @param {GoogleAppsScript.Forms.Form} form - فورم مقياس التدفق
+ * @returns {GoogleAppsScript.Forms.MultipleChoiceItem[]}
+ */
+function getLikertItems(form) {
+  const items = form.getItems();
+  const likert = [];
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].getType() === FormApp.ItemType.MULTIPLE_CHOICE) {
+      likert.push(items[i].asMultipleChoiceItem());
+    }
+  }
+  return likert;
+}
+
+/**
  * استخراج معرف الفورم من الرابط
  * @param {string} url - رابط الفورم أو المعرف
  * @returns {string}
@@ -72,7 +89,8 @@ function rng() {
  * @returns {number}
  */
 function normalRandom() {
-  const u1 = rng(), u2 = rng();
+  const u1 = Math.max(rng(), 1e-10);
+  const u2 = rng();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
@@ -255,7 +273,14 @@ function checkStatus() {
       const cfg = JSON.parse(props.getProperty('CONFIG') || '{}');
       if (cfg.questions) numQ = cfg.questions.length;
     } catch (e) { /* fallback to 30 */ }
-    Logger.log("📊 المتوسط: " + (average(scores) / numQ * 100).toFixed(1) + "%");
+    Logger.log("📊 متوسط MCQ: " + (average(scores) / numQ * 100).toFixed(1) + "%");
+  }
+
+  const flowScoreKey = 'FLOW_' + phase + '_SCORES';
+  const flowScores = JSON.parse(props.getProperty(flowScoreKey) || '[]');
+  if (flowScores.length > 0) {
+    Logger.log("🌊 متوسط التدفق: " + average(flowScores).toFixed(1) + "/280" +
+      " (" + (average(flowScores) / 280 * 100).toFixed(1) + "%)");
   }
 
   Logger.log("⏱️ مؤقتات: " + ScriptApp.getProjectTriggers().length);
