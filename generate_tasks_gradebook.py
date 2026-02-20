@@ -15,6 +15,7 @@
 
 import sys
 import io
+import random
 
 # ضمان عرض النصوص العربية بشكل صحيح على Windows
 if hasattr(sys.stdout, "buffer"):
@@ -342,8 +343,10 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
         if group in TASK_CONFIG["lateGroups"]:
             if res["is_late"] and res.get("hours_late", 0) > 0:
                 submit_time = deadline + timedelta(hours=res["hours_late"])
-                if 2 <= submit_time.hour <= 8:
-                    submit_time -= timedelta(hours=7)
+                # تصحيح وقت الفجر: ضمان الهبوط في نافذة 18:00-22:00
+                if 0 <= submit_time.hour <= 8:
+                    shift_hours = submit_time.hour + random.randint(2, 6)
+                    submit_time -= timedelta(hours=shift_hours)
             else:
                 early_hours = (flow_i * 48) + rng.normal(0, 10)
                 early_hours = max(1, min(window * 24, early_hours))
