@@ -225,6 +225,11 @@ def generate_student_tasks(student, rng):
         base  = skill_to_base(skill_i)
         noise = rng.normal(0, noise_sd)
         raw   = base + collab_bonus + flow_adj + noise
+
+        # دفعة تشاركية خاصة للمهمة الثالثة (M3: التحليل الأخلاقي) — +10% لـ G3/G4
+        if task_idx == 2 and group in TASK_CONFIG["collaborativeGroups"]:
+            raw *= 1.10  # الذكاء الجمعي يبرز في M3
+
         raw   = float(np.clip(raw, 0, TASK_CONFIG["taskMaxScore"]))
 
         # منطق تحديد التأخير لمجموعات الضغط الزمني (G2, G4)
@@ -256,9 +261,9 @@ def generate_student_tasks(student, rng):
 def generate_all_results(students, team_map, rng):
     """
     يولّد نتائج المهام لجميع الطلاب:
-    - G3/G4 التشاركية: نتيجة واحدة لكل فريق تُنسخ لجميع أعضائه
+    - G3/G4 التشاركية: نتيجة واحدة للأعضاء النشطين فقط (المتسرب يأخذ M1+M2 ثم أصفار)
     - G1/G2 التنافسية: نتيجة فردية لكل طالب
-    التوقيتات مرتبطة بـ postFlowLevel (تدفق عالٍ = تسليم مبكر).
+    التوقيتات مرتبطة بمنحنى التدفق (قبلي→بعدي متدرج).
     """
     all_results = [None] * len(students)
     team_cache = {}
@@ -270,25 +275,38 @@ def generate_all_results(students, team_map, rng):
         team = team_map[sid]
         drop = is_dropout(sid)
 
+        # التدفق القبلي والبعدي لحساب منحنى التدفق
+        pre_flow  = student.get("preFlowLevel") or 0.40
+        post_flow = student.get("postFlowLevel") or 0.30
+
         if team != "عمل فردي":
             team_key = f"{grp}_{team}"
             if team_key not in team_cache:
-                members  = [s for s in students
-                            if team_map[s["id"]] == team and s["group"] == grp]
-                avg_pre  = float(np.mean([m["preSkill"] or 0.25 for m in members]))
-                avg_post = float(np.mean([(m["postSkill"] or (m["preSkill"] or 0.25) * 1.05) for m in members]))
-                avg_flow = float(np.mean([(m.get("postFlowLevel") or 0.30) for m in members]))
+                # حساب درجات الفريق من الأعضاء النشطين فقط (بدون المتسربين)
+                members = [s for s in students
+                           if team_map[s["id"]] == team and s["group"] == grp]
+                active_members = [m for m in members if not is_dropout(m["id"])]
+                if not active_members:
+                    active_members = members  # fallback
+
+                avg_pre  = float(np.mean([m["preSkill"] or 0.25 for m in active_members]))
+                avg_post = float(np.mean([(m["postSkill"] or (m["preSkill"] or 0.25) * 1.05) for m in active_members]))
+                avg_pre_flow  = float(np.mean([(m.get("preFlowLevel") or 0.40) for m in active_members]))
+                avg_post_flow = float(np.mean([(m.get("postFlowLevel") or 0.30) for m in active_members]))
                 team_student = {"id": "TEAM", "group": grp,
                                 "preSkill": avg_pre, "postSkill": avg_post,
-                                "postFlowLevel": avg_flow}
+                                "postFlowLevel": avg_post_flow,
+                                "preFlowLevel": avg_pre_flow}
                 team_res = generate_student_tasks(team_student, rng)
-                _assign_timestamps_for_student(team_res, grp, avg_flow, deadlines, rng)
+                _assign_timestamps_for_student(
+                    team_res, grp, avg_pre_flow, avg_post_flow, deadlines, rng)
                 team_cache[team_key] = team_res
 
             base = team_cache[team_key]
             results = []
             for t_idx, res in enumerate(base):
                 if drop and t_idx >= 2:
+                    # المتسرب: يأخذ M1+M2 من الفريق، ثم أصفار
                     results.append({"task": res["task"], "score": None, "raw_score": None,
                                     "is_late": None, "hours_late": 0, "submit_date": None})
                 else:
@@ -297,14 +315,17 @@ def generate_all_results(students, team_map, rng):
         else:
             res = generate_student_tasks(student, rng)
             _assign_timestamps_for_student(
-                res, grp, student.get("postFlowLevel") or 0.30, deadlines, rng)
+                res, grp, pre_flow, post_flow, deadlines, rng)
             all_results[i] = res
 
     return all_results
 
 
-def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
-    """يُعيّن توقيتات تسليم مرتبطة بالتدفق: تدفق عالٍ = تسليم مبكر."""
+def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadlines, rng):
+    """
+    يُعيّن توقيتات تسليم بمنحنى تدفق متدرج:
+    M1 = تدفق قبلي, M5 = تدفق بعدي, وما بينهما مزيج.
+    """
     window  = TASK_CONFIG["submitWindowDays"]
     n_tasks = len(TASK_CONFIG["tasks"])
 
@@ -314,16 +335,17 @@ def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
 
         deadline = deadlines[task_idx]
 
+        # منحنى التدفق المتدرج: قبلي → بعدي
+        task_progress = task_idx / max(1, n_tasks - 1)
+        flow_i = pre_flow + task_progress * (post_flow - pre_flow)
+
         if group in TASK_CONFIG["lateGroups"]:
             if res["is_late"] and res.get("hours_late", 0) > 0:
-                # إضافة التأخير بالساعات فوق الموعد النهائي
                 submit_time = deadline + timedelta(hours=res["hours_late"])
-                # تجنب تسليمات الفجر (بين 2 صباحاً و 8 صباحاً)
                 if 2 <= submit_time.hour <= 8:
                     submit_time -= timedelta(hours=7)
             else:
-                # تسليم مبكر
-                early_hours = (post_flow * 48) + rng.normal(0, 10)
+                early_hours = (flow_i * 48) + rng.normal(0, 10)
                 early_hours = max(1, min(window * 24, early_hours))
                 submit_time = deadline - timedelta(hours=early_hours)
 
@@ -332,7 +354,7 @@ def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
             if task_idx == n_tasks - 1:
                 submit_day = deadline - timedelta(days=float(rng.uniform(0, 1.5)))
             else:
-                procrastination = (1.0 - post_flow) * window
+                procrastination = (1.0 - flow_i) * window
                 base_early = window - procrastination + rng.normal(0, 1.0)
                 base_early = max(0, min(window, base_early))
                 submit_day = deadline - timedelta(days=base_early)
@@ -435,9 +457,10 @@ def build_dataframe(all_results, students, team_map):
 
 
 def apply_competitive_bonuses(df):
-    """يطبّق مكافآت ترتيبية لـ G1 (حسب الدرجة) و G2 (حسب السرعة + الجودة)."""
+    """يطبّق مكافآت ترتيبية لكل المجموعات (تنافسية + تشاركية)."""
     tasks = TASK_CONFIG["tasks"]
 
+    # === G1: تنافسي + مفتوح — حسب الدرجة الإجمالية
     g1_active = df[(df["Group"] == "G1") & (df["Is_Dropout"] == "لا")]
     g1_sorted = g1_active.sort_values("Total", ascending=False).index
     for rank, idx in enumerate(g1_sorted):
@@ -446,6 +469,7 @@ def apply_competitive_bonuses(df):
         elif rank < 8:
             df.at[idx, "Bonus"] = 5
 
+    # === G2: تنافسي + محدد — حسب السرعة + الجودة
     g2_active = df[(df["Group"] == "G2") & (df["Is_Dropout"] == "لا")]
     g2_data = []
     for idx in g2_active.index:
@@ -460,12 +484,45 @@ def apply_competitive_bonuses(df):
         elif rank < 10:
             df.at[idx, "Bonus"] = 10
 
+    # === G3: تشاركي + مفتوح — حسب متوسط درجات الفريق
+    _apply_team_ranking_bonus(df, "G3", tasks)
+
+    # === G4: تشاركي + محدد — حسب متوسط درجات الفريق
+    _apply_team_ranking_bonus(df, "G4", tasks)
+
+    # تحديث الإجماليات
     mask = df["Bonus"] > 0
     df.loc[mask, "Total"] = df.loc[mask, "Total"] + df.loc[mask, "Bonus"]
     df.loc[mask, "Percentage"] = (
         df.loc[mask, "Total"] / df.loc[mask, "Max_Possible"] * 100
     ).round(1)
     df.loc[mask, "Grade"] = df.loc[mask, "Percentage"].apply(letter_grade)
+
+
+def _apply_team_ranking_bonus(df, group, tasks):
+    """يطبّق مكافآت ترتيبية للفرق التشاركية (25/20/15 نقطة)."""
+    g_active = df[(df["Group"] == group) & (df["Is_Dropout"] == "لا")]
+    if g_active.empty:
+        return
+
+    # حساب متوسط درجات كل فريق
+    team_scores = {}
+    for idx in g_active.index:
+        team = df.at[idx, "Team"]
+        if team not in team_scores:
+            team_scores[team] = []
+        team_scores[team].append(df.at[idx, "Total"])
+
+    team_avgs = [(team, np.mean(scores)) for team, scores in team_scores.items()]
+    team_avgs.sort(key=lambda x: -x[1])  # ترتيب تنازلي
+
+    # توزيع المكافآت حسب الترتيب
+    bonus_map = {0: 25, 1: 20, 2: 15}  # مركز 1: 25، مركز 2: 20، مركز 3: 15
+    for rank, (team, _) in enumerate(team_avgs):
+        if rank in bonus_map:
+            team_members = g_active[g_active["Team"] == team].index
+            for idx in team_members:
+                df.at[idx, "Bonus"] = bonus_map[rank]
 
 
 # ════════════════════════════════════════════════════════════════
