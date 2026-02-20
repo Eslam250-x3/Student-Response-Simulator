@@ -136,17 +136,27 @@ def inject_dropouts(students):
 
 
 def assign_teams(students):
-    """يقسّم طلاب G3/G4 إلى فرق (كل 4 طلاب متتاليين = فريق)."""
+    """يقسّم طلاب G3/G4 إلى فرق مع توزيع المتسربين عشوائياً على الفرق."""
     team_map = {}
-    counters = {"G3": 0, "G4": 0}
+    # فصل الطلاب حسب المجموعة
+    group_students = {"G3": [], "G4": []}
     for s in students:
         grp = s["group"]
-        if grp in ("G3", "G4"):
-            team_idx = counters[grp] // 4 + 1
-            team_map[s["id"]] = f"فريق {team_idx}"
-            counters[grp] += 1
+        if grp in group_students:
+            group_students[grp].append(s)
         else:
             team_map[s["id"]] = "عمل فردي"
+
+    # لكل مجموعة تشاركية: خلط الطلاب عشوائياً ثم تقسيمهم لفرق
+    # هذا يمنع تكتل المتسربين في فريق واحد
+    import random
+    rng_shuffle = random.Random(42)  # seed ثابت للتكرارية
+    for grp in ["G3", "G4"]:
+        members = group_students[grp]
+        rng_shuffle.shuffle(members)  # خلط عشوائي
+        for idx, s in enumerate(members):
+            team_idx = idx // 4 + 1
+            team_map[s["id"]] = f"فريق {team_idx}"
     return team_map
 
 
@@ -388,14 +398,25 @@ def build_dataframe(all_results, students, team_map):
         }
 
         task_scores = []
+        dropout = is_dropout(sid)
         for task_idx, task_name in enumerate(tasks):
             res = all_results[i][task_idx]
-            score = round(res["score"], 1) if res["score"] is not None else None
-            row[task_name]                = score
-            row[f"{task_name}_Date"]      = res["submit_date"] if score is not None else None
-            row[f"{task_name}_Late"]      = ("نعم" if res["is_late"] else "لا") if score is not None else None
-            if score is not None:
+            if res["score"] is None and dropout:
+                # المتسرب: عرض "لم يتم التسليم" بدل خلايا فارغة
+                row[task_name]                = 0
+                row[f"{task_name}_Date"]      = "لم يتم التسليم"
+                row[f"{task_name}_Late"]      = "-"
+                task_scores.append(0)
+            elif res["score"] is not None:
+                score = round(res["score"], 1)
+                row[task_name]                = score
+                row[f"{task_name}_Date"]      = res["submit_date"]
+                row[f"{task_name}_Late"]      = "نعم" if res["is_late"] else "لا"
                 task_scores.append(score)
+            else:
+                row[task_name]                = None
+                row[f"{task_name}_Date"]      = None
+                row[f"{task_name}_Late"]      = None
 
         max_possible = len(task_scores) * TASK_CONFIG["taskMaxScore"]
         total  = round(sum(task_scores), 1) if task_scores else 0
