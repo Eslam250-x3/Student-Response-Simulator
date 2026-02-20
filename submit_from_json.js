@@ -45,6 +45,56 @@ var DROPOUT_IDS = [
     "STD-093", "STD-094", "STD-095", "STD-096"
 ];
 
+// --- Safe Property Storage (handles 9 KB GAS per-value limit) ---
+// The Smart Queue for 96 students (192 entries) can exceed the 9 KB
+// ScriptProperties limit, so large values are auto-split into chunks.
+
+/**
+ * Saves a large string to Script Properties safely.
+ * Values larger than 8000 chars are split into KEY_CHUNK_0 / _1 / ...
+ * @param {GoogleAppsScript.Properties.Properties} props
+ * @param {string} key
+ * @param {string} value
+ */
+function safeSetProperty(props, key, value) {
+    var CHUNK_SIZE = 8000;
+    var oldChunks = parseInt(props.getProperty(key + "_CHUNKS") || "0");
+    for (var k = 0; k < oldChunks; k++) {
+        props.deleteProperty(key + "_CHUNK_" + k);
+    }
+    props.deleteProperty(key + "_CHUNKS");
+    props.deleteProperty(key);
+    if (value.length <= CHUNK_SIZE) {
+        props.setProperty(key, value);
+    } else {
+        var chunks = [];
+        for (var i = 0; i < value.length; i += CHUNK_SIZE) {
+            chunks.push(value.substring(i, i + CHUNK_SIZE));
+        }
+        for (var j = 0; j < chunks.length; j++) {
+            props.setProperty(key + "_CHUNK_" + j, chunks[j]);
+        }
+        props.setProperty(key + "_CHUNKS", String(chunks.length));
+    }
+}
+
+/**
+ * Reads a string that was saved with safeSetProperty.
+ * @param {GoogleAppsScript.Properties.Properties} props
+ * @param {string} key
+ * @returns {string|null}
+ */
+function safeGetProperty(props, key) {
+    var chunksStr = props.getProperty(key + "_CHUNKS");
+    if (!chunksStr) return props.getProperty(key);
+    var n = parseInt(chunksStr);
+    var result = "";
+    for (var i = 0; i < n; i++) {
+        result += (props.getProperty(key + "_CHUNK_" + i) || "");
+    }
+    return result;
+}
+
 // ─── الأدوات المساعدة ──────────────────────────────────────────
 
 /**
