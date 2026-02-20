@@ -9,22 +9,22 @@ from scipy import stats as sp_stats
 
 # ─── بيانات المتسربات (من students.js) ───────────────────────
 DROPOUT_STUDENTS = [
-    # G1 — 4 متسربات
+    # G1 — 3 متسربات (مجموعة مرنة)
     {"id": "STD-081", "name": "لجين صالح",    "email": "lujain.saleh.r@gmail.com",    "group": "G1"},
     {"id": "STD-082", "name": "غادة نبيل",    "email": "ghada.nabil.h@gmail.com",     "group": "G1"},
     {"id": "STD-083", "name": "رشا أنور",     "email": "rasha.anwar.m@gmail.com",     "group": "G1"},
-    {"id": "STD-084", "name": "ميار حمدي",    "email": "mayar.hamdi.s@gmail.com",     "group": "G1"},
-    # G2 — 4 متسربات
+    # G2 — 5 متسربات (مجموعة ضغط زمني)
+    {"id": "STD-084", "name": "ميار حمدي",    "email": "mayar.hamdi.s@gmail.com",     "group": "G2"},
     {"id": "STD-085", "name": "نيرة سامي",    "email": "nayera.sami.k@gmail.com",     "group": "G2"},
     {"id": "STD-086", "name": "إيمان زكي",    "email": "iman.zaki.f@gmail.com",       "group": "G2"},
     {"id": "STD-087", "name": "أسماء حافظ",   "email": "asmaa.hafez.n@gmail.com",     "group": "G2"},
     {"id": "STD-088", "name": "دعاء رمضان",   "email": "doaa.ramadan.y@gmail.com",    "group": "G2"},
-    # G3 — 4 متسربات
+    # G3 — 3 متسربات (مجموعة مرنة)
     {"id": "STD-089", "name": "سلوى ممدوح",   "email": "salwa.mamdouh.t@gmail.com",   "group": "G3"},
     {"id": "STD-090", "name": "هند ماهر",     "email": "hend.maher.g@gmail.com",      "group": "G3"},
     {"id": "STD-091", "name": "رانيا فريد",   "email": "rania.farid.z@gmail.com",     "group": "G3"},
-    {"id": "STD-092", "name": "عزة طلعت",     "email": "azza.talaat.b@gmail.com",     "group": "G3"},
-    # G4 — 4 متسربات
+    # G4 — 5 متسربات (مجموعة ضغط زمني)
+    {"id": "STD-092", "name": "عزة طلعت",     "email": "azza.talaat.b@gmail.com",     "group": "G4"},
     {"id": "STD-093", "name": "منار شوقي",    "email": "manar.shawki.r@gmail.com",    "group": "G4"},
     {"id": "STD-094", "name": "نادين عصام",   "email": "nadine.essam.l@gmail.com",    "group": "G4"},
     {"id": "STD-095", "name": "شهد كمال",     "email": "shahd.kamal.w@gmail.com",     "group": "G4"},

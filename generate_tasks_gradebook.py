@@ -82,11 +82,12 @@ TASK_CONFIG = {
 }
 
 # الطلاب المتسربون — يكملون M1 و M2 فقط
+# توزيع غير متماثل: G2/G4 (ضغط زمني) = 5 متسربين، G1/G3 (مرنين) = 3 متسربين
 DROPOUT_IDS = [
-    "STD-081", "STD-082", "STD-083", "STD-084",
-    "STD-085", "STD-086", "STD-087", "STD-088",
-    "STD-089", "STD-090", "STD-091", "STD-092",
-    "STD-093", "STD-094", "STD-095", "STD-096",
+    "STD-081", "STD-082", "STD-083",               # G1: 3
+    "STD-084", "STD-085", "STD-086", "STD-087", "STD-088",  # G2: 5
+    "STD-089", "STD-090", "STD-091",               # G3: 3
+    "STD-092", "STD-093", "STD-094", "STD-095", "STD-096",  # G4: 5
 ]
 
 # تسميات الحروف
@@ -242,6 +243,11 @@ def generate_student_tasks(student, rng):
             # المتوسط السالب لأغلب الطلاب = تسليم في الوقت
             expected_delay_hours = -10.0 + (1.0 - post_flow) * 20.0
             delay = rng.normal(expected_delay_hours, 3.5)
+
+            # حقن قيم متطرفة (5%): طالب متميز يتأخر لظرف طارئ
+            # يكسر الخطية المصطنعة في العلاقة بين التدفق والتأخير
+            if rng.random() < 0.05:
+                delay = rng.uniform(6, 18)  # تأخير عشوائي 6-18 ساعة
 
             if delay > 0:
                 hours_late = round(delay, 1)
