@@ -96,6 +96,9 @@ GRADE_THRESHOLDS = [
     (70, "C+"), (65, "C"), (60, "D+"), (55, "D"), (0, "F"),
 ]
 
+# منحنى التعلم البشري (S-curve): تعلم سريع في البداية ثم يثبت
+LEARNING_RATIOS = [0.0, 0.40, 0.70, 0.90, 1.0]
+
 
 # ════════════════════════════════════════════════════════════════
 #  قراءة البيانات
@@ -221,7 +224,7 @@ def generate_student_tasks(student, rng):
             })
             continue
 
-        task_progress = task_idx / (num_tasks - 1)
+        task_progress = LEARNING_RATIOS[task_idx]
         skill_i = pre_skill + task_progress * (post_skill - pre_skill)
 
         base  = skill_to_base(skill_i)
@@ -274,6 +277,7 @@ def generate_all_results(students, team_map, rng):
     """
     all_results = [None] * len(students)
     team_cache = {}
+    team_member_idx = {}  # تتبع ترتيب العضو في الفريق لإزاحة التوقيت
     deadlines = [datetime.strptime(d, "%Y-%m-%d") for d in TASK_CONFIG["deadlines"]]
 
     for i, student in enumerate(students):
@@ -310,6 +314,9 @@ def generate_all_results(students, team_map, rng):
                 team_cache[team_key] = team_res
 
             base = team_cache[team_key]
+            member_idx = team_member_idx.get(team_key, 0)
+            team_member_idx[team_key] = member_idx + 1
+
             results = []
             for t_idx, res in enumerate(base):
                 if drop and t_idx >= 2:
@@ -317,7 +324,13 @@ def generate_all_results(students, team_map, rng):
                     results.append({"task": res["task"], "score": None, "raw_score": None,
                                     "is_late": None, "hours_late": 0, "submit_date": None})
                 else:
-                    results.append(dict(res))
+                    copied = dict(res)
+                    # إزاحة زمنية عشوائية (1–15 دقيقة) لكل عضو بعد الأول
+                    if copied["submit_date"] is not None and member_idx > 0:
+                        base_dt = datetime.strptime(copied["submit_date"], "%Y-%m-%d %H:%M")
+                        offset_minutes = int(rng.integers(1, 16))
+                        copied["submit_date"] = (base_dt + timedelta(minutes=offset_minutes)).strftime("%Y-%m-%d %H:%M")
+                    results.append(copied)
             all_results[i] = results
         else:
             res = generate_student_tasks(student, rng)
@@ -342,8 +355,8 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
 
         deadline = deadlines[task_idx]
 
-        # منحنى التدفق المتدرج: قبلي → بعدي
-        task_progress = task_idx / max(1, n_tasks - 1)
+        # منحنى التدفق المتدرج: قبلي → بعدي (منحنى تعلم واقعي)
+        task_progress = LEARNING_RATIOS[task_idx]
         flow_i = pre_flow + task_progress * (post_flow - pre_flow)
 
         if group in TASK_CONFIG["lateGroups"]:
@@ -367,6 +380,23 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
                 base_early = window - procrastination + rng.normal(0, 1.0)
                 base_early = max(0, min(window, base_early))
                 submit_day = deadline - timedelta(days=base_early)
+
+            # --- تصحيح عطلة نهاية الأسبوع ---
+            weekday = submit_day.weekday()   # 0=Mon … 4=Fri, 5=Sat, 6=Sun
+            if weekday == 4:  # الجمعة
+                if flow_i > 0.6:
+                    # طالب منخرط: يُنهي قبل العطلة (الخميس)
+                    submit_day -= timedelta(days=1)
+                elif rng.random() < 0.5:
+                    # مسوّف: يتأخر إلى ما بعد العطلة (الأحد) — فقط إذا لم يتجاوز الموعد
+                    candidate = submit_day + timedelta(days=2)
+                    if candidate <= deadline:
+                        submit_day = candidate
+            elif weekday == 5:  # السبت (يوم الموعد النهائي عادةً)
+                if flow_i > 0.5:
+                    # طالب متوسط/منخرط: يُنهي قبل العطلة بيوم (الخميس)
+                    submit_day -= timedelta(days=2)
+                # المسوّف يبقى على السبت (يوم الموعد ذاته — مقبول)
 
             hour   = int(rng.integers(9, 23))
             minute = int(rng.integers(0, 60))
