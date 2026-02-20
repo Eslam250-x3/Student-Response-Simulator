@@ -154,7 +154,6 @@ function submitMCQResponse(form, student, phase) {
         if (item.getType() === FormApp.ItemType.TEXT) {
             // حقل الإيميل
             formResponse.withItemResponse(item.asTextItem().createResponse(student.email));
-            startIdx = 0;
             continue;
         }
 
@@ -521,6 +520,14 @@ function runPreTestJSON() {
         return;
     }
 
+    if (state === "PRE_DONE" || state === "POST_DONE") {
+        Logger.log("⚠️ تحذير: فيه ردود قبلية متبعتة قبل كده!");
+        Logger.log("⚠️ لو شغّلت تاني هيتبعت ردود مكررة في Google Forms.");
+        Logger.log("💡 لو متأكد، شغّل resetJSONState() الأول ثم أعد التشغيل.");
+        Logger.log("💡 وتأكد إنك مسحت الردود القديمة من الفورم.");
+        return;
+    }
+
     var fileId = SIMULATION_FILE_ID || props.getProperty("SIMULATION_FILE_ID");
     if (!fileId) { Logger.log("❌ ضع SIMULATION_FILE_ID في أعلى الملف"); return; }
     if (!MCQ_FORM_URL) { Logger.log("❌ ضع MCQ_FORM_URL في أعلى الملف"); return; }
@@ -774,11 +781,11 @@ function checkJSONStatus() {
     Logger.log("═══════════════════════════════════════════");
 
     var stateLabel = {
-        "IDLE":         "لم تبدأ بعد",
-        "PRE_RUNNING":  "القبلي يعمل...",
-        "PRE_DONE":     "القبلي اكتمل ✅ — جاهز للبعدي",
+        "IDLE": "لم تبدأ بعد",
+        "PRE_RUNNING": "القبلي يعمل...",
+        "PRE_DONE": "القبلي اكتمل ✅ — جاهز للبعدي",
         "POST_RUNNING": "البعدي يعمل...",
-        "POST_DONE":    "اكتملت بالكامل ✅"
+        "POST_DONE": "اكتملت بالكامل ✅"
     }[state] || state;
 
     Logger.log("🔄 الحالة: " + stateLabel);
@@ -797,7 +804,7 @@ function checkJSONStatus() {
     var remaining = total - doneCnt;
 
     // إحصاء MCQ/Flow منفصلَين
-    var mcqDone  = queue.filter(function (q) { return q.done && q.phase.indexOf("mcq")  !== -1; }).length;
+    var mcqDone = queue.filter(function (q) { return q.done && q.phase.indexOf("mcq") !== -1; }).length;
     var flowDone = queue.filter(function (q) { return q.done && q.phase.indexOf("flow") !== -1; }).length;
 
     Logger.log("📋 إجمالي المهام: " + total + " | تم: " + doneCnt + " | متبقي: " + remaining);

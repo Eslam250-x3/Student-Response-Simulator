@@ -48,7 +48,7 @@ DEFAULT_SETTINGS = {
     # Target ranking: G3 > G4 > G1 ≥ G2
     "groupEffects": {
         "G1": {"improvementBonus": 0.02,  "skillSpreadMod": 0.0},   # تنافسي + مفتوح
-        "G2": {"improvementBonus": 0.00,  "skillSpreadMod": 0.02},  # تنافسي + محدد
+        "G2": {"improvementBonus": -0.02, "skillSpreadMod": 0.02},  # تنافسي + محدد (ضغط زمني سلبي)
         "G3": {"improvementBonus": 0.07,  "skillSpreadMod": -0.01}, # تشاركي + مفتوح (الأعلى)
         "G4": {"improvementBonus": 0.04,  "skillSpreadMod": 0.01}   # تشاركي + محدد
     },
@@ -73,7 +73,7 @@ DEFAULT_SETTINGS = {
         "significanceLevel": 0.005,
         "minCohenD": 0.5,
         "maxCohenD": 1.2,
-        "minKR20": 0.60,
+        "minKR20": 0.65,
         "maxAttempts": 50
     },
     
@@ -108,6 +108,14 @@ def generate_mcq_profiles(rng, students, settings):
         # Pre-test skill
         pre_skill = rng.normal(pre["meanSkill"], pre["skillSpread"])
         pre_skill = np.clip(pre_skill, pre["minSkill"], pre["maxSkill"])
+        
+        # المتسربون: انحياز سالب في القبلي (أضعف → أكثر عرضة للانسحاب)
+        is_dropout = s.get("isDropout", False) or s["id"] in [
+            f"STD-{i:03d}" for i in range(81, 97)
+        ]
+        if is_dropout:
+            pre_skill = pre_skill - 0.12
+            pre_skill = max(pre_skill, pre["minSkill"])
         
         # Improvement (weaker students improve more)
         weak_factor = 1 + (pre["meanSkill"] - pre_skill) * imp["weakBonus"]

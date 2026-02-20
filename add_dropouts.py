@@ -193,8 +193,8 @@ def main():
     for s in new_students:
         g = gfx.get(s["group"], {"improvementBonus": 0, "skillSpreadMod": 0})
 
-        # Pre-test MCQ skill
-        pre_skill = rng.normal(pre["meanSkill"], pre["skillSpread"])
+        # Pre-test MCQ skill — المتسربون أضعف (انحياز سالب)
+        pre_skill = rng.normal(pre["meanSkill"] - 0.12, pre["skillSpread"])
         pre_skill = float(np.clip(pre_skill, pre["minSkill"], pre["maxSkill"]))
 
         # Pre-test flow level

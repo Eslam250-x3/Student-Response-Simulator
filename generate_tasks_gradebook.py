@@ -56,10 +56,8 @@ TASK_CONFIG = {
 
     # المجموعات التي تخضع لعقوبة التأخير (محدّدة الوقت)
     "lateGroups": ["G2", "G4"],
-    "lateRate": 0.20,           # 20% من طلاب المجموعات المحدّدة يتأخرون
-    "latePenaltyPerDay": 5,     # خصم 5 نقاط لكل يوم تأخير
-    "maxLateDays": 5,           # أقصى تأخير 5 أيام
-    "maxLatePenalty": 20,       # الحد الأقصى للخصم
+    # عقوبة التأخير حسب الإطار النظري:
+    # 0-6 ساعات: خصم 30% | 6-24 ساعة: خصم 60% | >24 ساعة: صفر
 
     # المجموعات التشاركية
     "collaborativeGroups": ["G3", "G4"],
@@ -187,9 +185,9 @@ def generate_student_tasks(student, rng):
     يولّد نتائج المهام لطالب واحد (أو متوسط فريق).
     التأخير مُستنتَج من postFlowLevel (تدفق عالٍ = التزام، منخفض = تأخير).
     """
-    pre_skill  = student["preSkill"]
-    post_skill = student["postSkill"]
-    post_flow  = student.get("postFlowLevel", 0.5)
+    pre_skill  = student["preSkill"] or 0.25
+    post_skill = student["postSkill"] or (pre_skill * 1.05)  # fallback للمتسربين
+    post_flow  = student.get("postFlowLevel") or 0.30        # fallback للمتسربين
     group      = student["group"]
     sid        = student["id"]
 
@@ -207,7 +205,7 @@ def generate_student_tasks(student, rng):
         if dropout and task_idx >= 2:
             results.append({
                 "task": task_name, "score": None, "raw_score": None,
-                "is_late": None, "days_late": None, "submit_date": None,
+                "is_late": None, "hours_late": 0, "submit_date": None,
             })
             continue
 
@@ -219,18 +217,23 @@ def generate_student_tasks(student, rng):
         raw   = base + collab_bonus + flow_adj + noise
         raw   = float(np.clip(raw, 0, TASK_CONFIG["taskMaxScore"]))
 
-        days_late = 0
+        # منطق تحديد التأخير لمجموعات الضغط الزمني (G2, G4)
+        hours_late = 0
         late_flag = False
+
         if group in TASK_CONFIG["lateGroups"]:
-            expected_delay = 2.0 - (post_flow * 5.0)
-            delay = rng.normal(expected_delay, 1.5)
-            if delay > 0.5:
-                days_late = min(int(round(delay)), TASK_CONFIG["maxLateDays"])
+            # التدفق العالي = تأخير أقل، التدفق المنخفض = تأخير أكبر
+            # المتوسط السالب لأغلب الطلاب = تسليم في الوقت
+            expected_delay_hours = -10.0 + (1.0 - post_flow) * 20.0
+            delay = rng.normal(expected_delay_hours, 3.5)
+
+            if delay > 0:
+                hours_late = round(delay, 1)
                 late_flag = True
 
         results.append({
             "task": task_name, "score": raw, "raw_score": raw,
-            "is_late": late_flag, "days_late": days_late, "submit_date": None,
+            "is_late": late_flag, "hours_late": hours_late, "submit_date": None,
         })
 
     return results
@@ -262,9 +265,9 @@ def generate_all_results(students, team_map, rng):
             if team_key not in team_cache:
                 members  = [s for s in students
                             if team_map[s["id"]] == team and s["group"] == grp]
-                avg_pre  = float(np.mean([m["preSkill"] for m in members]))
-                avg_post = float(np.mean([m["postSkill"] for m in members]))
-                avg_flow = float(np.mean([m.get("postFlowLevel", 0.5) for m in members]))
+                avg_pre  = float(np.mean([m["preSkill"] or 0.25 for m in members]))
+                avg_post = float(np.mean([(m["postSkill"] or (m["preSkill"] or 0.25) * 1.05) for m in members]))
+                avg_flow = float(np.mean([(m.get("postFlowLevel") or 0.30) for m in members]))
                 team_student = {"id": "TEAM", "group": grp,
                                 "preSkill": avg_pre, "postSkill": avg_post,
                                 "postFlowLevel": avg_flow}
@@ -277,14 +280,14 @@ def generate_all_results(students, team_map, rng):
             for t_idx, res in enumerate(base):
                 if drop and t_idx >= 2:
                     results.append({"task": res["task"], "score": None, "raw_score": None,
-                                    "is_late": None, "days_late": None, "submit_date": None})
+                                    "is_late": None, "hours_late": 0, "submit_date": None})
                 else:
                     results.append(dict(res))
             all_results[i] = results
         else:
             res = generate_student_tasks(student, rng)
             _assign_timestamps_for_student(
-                res, grp, student.get("postFlowLevel", 0.5), deadlines, rng)
+                res, grp, student.get("postFlowLevel") or 0.30, deadlines, rng)
             all_results[i] = res
 
     return all_results
@@ -302,12 +305,19 @@ def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
         deadline = deadlines[task_idx]
 
         if group in TASK_CONFIG["lateGroups"]:
-            if res["is_late"] and res["days_late"] > 0:
-                submit_day = deadline + timedelta(days=res["days_late"])
+            if res["is_late"] and res.get("hours_late", 0) > 0:
+                # إضافة التأخير بالساعات فوق الموعد النهائي
+                submit_time = deadline + timedelta(hours=res["hours_late"])
+                # تجنب تسليمات الفجر (بين 2 صباحاً و 8 صباحاً)
+                if 2 <= submit_time.hour <= 8:
+                    submit_time -= timedelta(hours=7)
             else:
-                early = post_flow * window + rng.normal(0, 0.8)
-                early = max(0, min(window, early))
-                submit_day = deadline - timedelta(days=early)
+                # تسليم مبكر
+                early_hours = (post_flow * 48) + rng.normal(0, 10)
+                early_hours = max(1, min(window * 24, early_hours))
+                submit_time = deadline - timedelta(hours=early_hours)
+
+            res["submit_date"] = submit_time.strftime("%Y-%m-%d %H:%M")
         else:
             if task_idx == n_tasks - 1:
                 submit_day = deadline - timedelta(days=float(rng.uniform(0, 1.5)))
@@ -317,23 +327,36 @@ def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
                 base_early = max(0, min(window, base_early))
                 submit_day = deadline - timedelta(days=base_early)
 
-        hour   = int(rng.integers(9, 23))
-        minute = int(rng.integers(0, 60))
-        submit_dt = submit_day.replace(hour=hour, minute=minute, second=0)
-        res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
+            hour   = int(rng.integers(9, 23))
+            minute = int(rng.integers(0, 60))
+            submit_dt = submit_day.replace(hour=hour, minute=minute, second=0)
+            res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
 
 
 def apply_late_penalties(all_results):
-    """يطبّق عقوبة التأخير: خصم latePenaltyPerDay × days_late."""
-    penalty_per_day = TASK_CONFIG["latePenaltyPerDay"]
-    max_penalty     = TASK_CONFIG["maxLatePenalty"]
-
+    """
+    يطبّق عقوبة التأخير بناءً على الإطار النظري:
+    - تأخير (0 إلى 6 ساعات): خصم 30%
+    - تأخير (6 إلى 24 ساعة): خصم 60%
+    - تأخير (أكثر من 24 ساعة): المهمة 0
+    """
     for student_results in all_results:
         for res in student_results:
             if res["score"] is None or not res["is_late"]:
                 continue
-            penalty = min(res["days_late"] * penalty_per_day, max_penalty)
-            res["score"] = float(np.clip(res["score"] - penalty, 0, TASK_CONFIG["taskMaxScore"]))
+
+            # التأخير بالساعات
+            delay_hours = res.get("hours_late", 0)
+
+            if 0 < delay_hours <= 6:
+                # خصم 30%
+                res["score"] = float(np.clip(res["score"] * 0.70, 0, TASK_CONFIG["taskMaxScore"]))
+            elif 6 < delay_hours <= 24:
+                # خصم 60%
+                res["score"] = float(np.clip(res["score"] * 0.40, 0, TASK_CONFIG["taskMaxScore"]))
+            elif delay_hours > 24:
+                # صفر
+                res["score"] = 0.0
 
 
 # ════════════════════════════════════════════════════════════════
@@ -409,7 +432,7 @@ def apply_competitive_bonuses(df):
         g2_data.append((idx, late_count, df.at[idx, "Total"]))
     g2_data.sort(key=lambda x: (x[1], -x[2]))
     for rank, (idx, _, total) in enumerate(g2_data):
-        if rank < 3 and total >= 350:
+        if rank < 3 and total >= 300:
             df.at[idx, "Bonus"] = 20
         elif rank < 6:
             df.at[idx, "Bonus"] = 15
