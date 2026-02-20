@@ -110,6 +110,48 @@ def load_data(json_path):
     return students
 
 
+def inject_dropouts(students):
+    """يضيف الطلاب المتسربين (16) إن لم يكونوا في الـ JSON ليصبح العدد 96."""
+    existing_ids = {s["id"] for s in students}
+    added = 0
+    for d_id in DROPOUT_IDS:
+        if d_id not in existing_ids:
+            num = int(d_id.split("-")[1])
+            if num <= 84:
+                grp = "G1"
+            elif num <= 88:
+                grp = "G2"
+            elif num <= 92:
+                grp = "G3"
+            else:
+                grp = "G4"
+            students.append({
+                "id": d_id, "name": f"طالب {d_id}",
+                "email": f"{d_id.lower().replace('-', '')}@student.edu",
+                "group": grp,
+                "preSkill": 0.25, "postSkill": 0.30,
+                "postFlowLevel": 0.20,
+            })
+            added += 1
+    if added > 0:
+        print(f"[Dropouts] تمت اضافة {added} طالب متسرب (الاجمالي: {len(students)})")
+
+
+def assign_teams(students):
+    """يقسّم طلاب G3/G4 إلى فرق (كل 4 طلاب متتاليين = فريق)."""
+    team_map = {}
+    counters = {"G3": 0, "G4": 0}
+    for s in students:
+        grp = s["group"]
+        if grp in ("G3", "G4"):
+            team_idx = counters[grp] // 4 + 1
+            team_map[s["id"]] = f"فريق {team_idx}"
+            counters[grp] += 1
+        else:
+            team_map[s["id"]] = "عمل فردي"
+    return team_map
+
+
 # ════════════════════════════════════════════════════════════════
 #  دوال توليد الدرجات
 # ════════════════════════════════════════════════════════════════
@@ -140,126 +182,149 @@ def is_dropout(student_id):
     return student_id in DROPOUT_IDS
 
 
-def generate_student_tasks(student, rng, late_set):
+def generate_student_tasks(student, rng):
     """
-    يولّد نتائج المهام لطالب واحد.
-
-    Parameters
-    ----------
-    student  : dict من simulation_data.json
-    rng      : numpy.random.Generator
-    late_set : set — مجموعة IDs الطلاب المحكوم عليهم بالتأخير
-
-    Returns
-    -------
-    list[dict] — نتيجة كل مهمة (قبل التسوية الجماعية)
+    يولّد نتائج المهام لطالب واحد (أو متوسط فريق).
+    التأخير مُستنتَج من postFlowLevel (تدفق عالٍ = التزام، منخفض = تأخير).
     """
-    pre_skill      = student["preSkill"]
-    post_skill     = student["postSkill"]
-    post_flow      = student.get("postFlowLevel", 0.5)
-    group          = student["group"]
-    sid            = student["id"]
+    pre_skill  = student["preSkill"]
+    post_skill = student["postSkill"]
+    post_flow  = student.get("postFlowLevel", 0.5)
+    group      = student["group"]
+    sid        = student["id"]
 
-    noise_sd       = get_task_noise_sd(group)
-    collab_bonus   = get_collaborative_bonus(group)
-    flow_adj       = (post_flow - 0.5) * TASK_CONFIG["flowWeight"]
-    dropout        = is_dropout(sid)
-    is_late_student = sid in late_set
+    noise_sd     = get_task_noise_sd(group)
+    collab_bonus = get_collaborative_bonus(group)
+    flow_adj     = (post_flow - 0.5) * TASK_CONFIG["flowWeight"]
+    dropout      = is_dropout(sid)
 
-    results = []
+    results   = []
     num_tasks = len(TASK_CONFIG["tasks"])
 
     for task_idx in range(num_tasks):
         task_name = TASK_CONFIG["tasks"][task_idx]
 
-        # المتسربون يكملون M1 و M2 فقط
         if dropout and task_idx >= 2:
             results.append({
-                "task": task_name,
-                "score": None,
-                "raw_score": None,
-                "is_late": None,
-                "days_late": None,
-                "submit_date": None,
+                "task": task_name, "score": None, "raw_score": None,
+                "is_late": None, "days_late": None, "submit_date": None,
             })
             continue
 
-        # منحنى التعلّم: تقدّم 0.0 → 1.0 عبر M1 → M5
         task_progress = task_idx / (num_tasks - 1)
         skill_i = pre_skill + task_progress * (post_skill - pre_skill)
 
-        # الدرجة الأساسية
-        base   = skill_to_base(skill_i)
-        noise  = rng.normal(0, noise_sd)
-        raw    = base + collab_bonus + flow_adj + noise
-        raw    = float(np.clip(raw, 0, TASK_CONFIG["taskMaxScore"]))
+        base  = skill_to_base(skill_i)
+        noise = rng.normal(0, noise_sd)
+        raw   = base + collab_bonus + flow_adj + noise
+        raw   = float(np.clip(raw, 0, TASK_CONFIG["taskMaxScore"]))
 
-        # التأخير (G2/G4 فقط ولطلاب مختارين عشوائياً)
         days_late = 0
         late_flag = False
-        if is_late_student and group in TASK_CONFIG["lateGroups"]:
-            days_late = int(rng.integers(1, TASK_CONFIG["maxLateDays"] + 1))
-            late_flag = True
+        if group in TASK_CONFIG["lateGroups"]:
+            expected_delay = 2.0 - (post_flow * 5.0)
+            delay = rng.normal(expected_delay, 1.5)
+            if delay > 0.5:
+                days_late = min(int(round(delay)), TASK_CONFIG["maxLateDays"])
+                late_flag = True
 
-        # وقت التسليم سيُضاف لاحقاً في assign_timestamps
         results.append({
-            "task":       task_name,
-            "score":      raw,       # سيُعدَّل بعقوبة التأخير لاحقاً
-            "raw_score":  raw,
-            "is_late":    late_flag,
-            "days_late":  days_late,
-            "submit_date": None,
+            "task": task_name, "score": raw, "raw_score": raw,
+            "is_late": late_flag, "days_late": days_late, "submit_date": None,
         })
 
     return results
 
 
 # ════════════════════════════════════════════════════════════════
-#  ديناميكيات المجموعات
+#  بناء النتائج (فرق تشاركية + أفراد + توقيتات مرتبطة بالتدفق)
 # ════════════════════════════════════════════════════════════════
 
-def apply_collaborative_leveling(all_results, students):
+def generate_all_results(students, team_map, rng):
     """
-    تسوية جماعية لـ G3/G4: تسحب الدرجات 15% نحو متوسط المجموعة.
-    تعمل على all_results مباشرة (mutates in-place).
+    يولّد نتائج المهام لجميع الطلاب:
+    - G3/G4 التشاركية: نتيجة واحدة لكل فريق تُنسخ لجميع أعضائه
+    - G1/G2 التنافسية: نتيجة فردية لكل طالب
+    التوقيتات مرتبطة بـ postFlowLevel (تدفق عالٍ = تسليم مبكر).
     """
-    leveling = TASK_CONFIG["collaborativeLevelingFactor"]
-    num_tasks = len(TASK_CONFIG["tasks"])
+    all_results = [None] * len(students)
+    team_cache = {}
+    deadlines = [datetime.strptime(d, "%Y-%m-%d") for d in TASK_CONFIG["deadlines"]]
 
-    for task_idx in range(num_tasks):
-        # احسب متوسط كل مجموعة تشاركية لهذه المهمة
-        group_scores = {"G3": [], "G4": []}
-        for i, student in enumerate(students):
-            g = student["group"]
-            if g not in group_scores:
-                continue
-            res = all_results[i][task_idx]
-            if res["score"] is not None:
-                group_scores[g].append(res["score"])
+    for i, student in enumerate(students):
+        grp  = student["group"]
+        sid  = student["id"]
+        team = team_map[sid]
+        drop = is_dropout(sid)
 
-        group_means = {
-            g: float(np.mean(v)) if v else None
-            for g, v in group_scores.items()
-        }
+        if team != "عمل فردي":
+            team_key = f"{grp}_{team}"
+            if team_key not in team_cache:
+                members  = [s for s in students
+                            if team_map[s["id"]] == team and s["group"] == grp]
+                avg_pre  = float(np.mean([m["preSkill"] for m in members]))
+                avg_post = float(np.mean([m["postSkill"] for m in members]))
+                avg_flow = float(np.mean([m.get("postFlowLevel", 0.5) for m in members]))
+                team_student = {"id": "TEAM", "group": grp,
+                                "preSkill": avg_pre, "postSkill": avg_post,
+                                "postFlowLevel": avg_flow}
+                team_res = generate_student_tasks(team_student, rng)
+                _assign_timestamps_for_student(team_res, grp, avg_flow, deadlines, rng)
+                team_cache[team_key] = team_res
 
-        # طبّق التسوية
-        for i, student in enumerate(students):
-            g = student["group"]
-            if g not in group_means or group_means[g] is None:
-                continue
-            res = all_results[i][task_idx]
-            if res["score"] is None:
-                continue
-            gm = group_means[g]
-            leveled = res["score"] * (1 - leveling) + gm * leveling
-            res["score"] = float(np.clip(leveled, 0, TASK_CONFIG["taskMaxScore"]))
+            base = team_cache[team_key]
+            results = []
+            for t_idx, res in enumerate(base):
+                if drop and t_idx >= 2:
+                    results.append({"task": res["task"], "score": None, "raw_score": None,
+                                    "is_late": None, "days_late": None, "submit_date": None})
+                else:
+                    results.append(dict(res))
+            all_results[i] = results
+        else:
+            res = generate_student_tasks(student, rng)
+            _assign_timestamps_for_student(
+                res, grp, student.get("postFlowLevel", 0.5), deadlines, rng)
+            all_results[i] = res
+
+    return all_results
+
+
+def _assign_timestamps_for_student(results, group, post_flow, deadlines, rng):
+    """يُعيّن توقيتات تسليم مرتبطة بالتدفق: تدفق عالٍ = تسليم مبكر."""
+    window  = TASK_CONFIG["submitWindowDays"]
+    n_tasks = len(TASK_CONFIG["tasks"])
+
+    for task_idx, res in enumerate(results):
+        if res["score"] is None:
+            continue
+
+        deadline = deadlines[task_idx]
+
+        if group in TASK_CONFIG["lateGroups"]:
+            if res["is_late"] and res["days_late"] > 0:
+                submit_day = deadline + timedelta(days=res["days_late"])
+            else:
+                early = post_flow * window + rng.normal(0, 0.8)
+                early = max(0, min(window, early))
+                submit_day = deadline - timedelta(days=early)
+        else:
+            if task_idx == n_tasks - 1:
+                submit_day = deadline - timedelta(days=float(rng.uniform(0, 1.5)))
+            else:
+                procrastination = (1.0 - post_flow) * window
+                base_early = window - procrastination + rng.normal(0, 1.0)
+                base_early = max(0, min(window, base_early))
+                submit_day = deadline - timedelta(days=base_early)
+
+        hour   = int(rng.integers(9, 23))
+        minute = int(rng.integers(0, 60))
+        submit_dt = submit_day.replace(hour=hour, minute=minute, second=0)
+        res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
 
 
 def apply_late_penalties(all_results):
-    """
-    يطبّق عقوبة التأخير: خصم latePenaltyPerDay × days_late بحد أقصى maxLatePenalty.
-    يعمل على all_results مباشرة (mutates in-place).
-    """
+    """يطبّق عقوبة التأخير: خصم latePenaltyPerDay × days_late."""
     penalty_per_day = TASK_CONFIG["latePenaltyPerDay"]
     max_penalty     = TASK_CONFIG["maxLatePenalty"]
 
@@ -269,43 +334,6 @@ def apply_late_penalties(all_results):
                 continue
             penalty = min(res["days_late"] * penalty_per_day, max_penalty)
             res["score"] = float(np.clip(res["score"] - penalty, 0, TASK_CONFIG["taskMaxScore"]))
-
-
-# ════════════════════════════════════════════════════════════════
-#  توليد timestamps
-# ════════════════════════════════════════════════════════════════
-
-def assign_timestamps(all_results, students, rng):
-    """
-    يُعيّن وقت تسليم واقعي لكل مهمة:
-    - الطلاب العاديون: يسلّمون عشوائياً في [deadline - submitWindowDays, deadline]
-    - الطلاب المتأخرون: يسلّمون في [deadline + 1, deadline + days_late]
-    - المتسربون: توقيت للمهام M1+M2 فقط، M3-M5 بلا توقيت
-    """
-    deadlines    = [datetime.strptime(d, "%Y-%m-%d") for d in TASK_CONFIG["deadlines"]]
-    window_days  = TASK_CONFIG["submitWindowDays"]
-
-    for i, student in enumerate(students):
-        for task_idx, res in enumerate(all_results[i]):
-            if res["score"] is None:
-                res["submit_date"] = None
-                continue
-
-            deadline = deadlines[task_idx]
-
-            if res["is_late"] and res["days_late"] > 0:
-                # تسليم بعد الموعد بـ days_late
-                submit_day = deadline + timedelta(days=int(res["days_late"]))
-            else:
-                # تسليم في النافذة [deadline - window, deadline]
-                days_before = int(rng.integers(0, window_days + 1))
-                submit_day = deadline - timedelta(days=days_before)
-
-            # إضافة ساعة عشوائية بين 8 صباحاً و 11 مساءً
-            hour = int(rng.integers(8, 23))
-            minute = int(rng.integers(0, 60))
-            submit_dt = submit_day.replace(hour=hour, minute=minute, second=0)
-            res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
 
 
 # ════════════════════════════════════════════════════════════════
@@ -322,16 +350,18 @@ def letter_grade(pct):
     return "F"
 
 
-def build_dataframe(all_results, students):
-    """يبني DataFrame من نتائج المهام لكل الطلاب."""
+def build_dataframe(all_results, students, team_map):
+    """يبني DataFrame من نتائج المهام مع عمود الفريق والبونص."""
     rows = []
     tasks = TASK_CONFIG["tasks"]
 
     for i, student in enumerate(students):
+        sid = student["id"]
         row = {
-            "ID":    student["id"],
+            "ID":    sid,
             "Name":  student["name"],
             "Group": student["group"],
+            "Team":  team_map.get(sid, "عمل فردي"),
         }
 
         task_scores = []
@@ -344,20 +374,54 @@ def build_dataframe(all_results, students):
             if score is not None:
                 task_scores.append(score)
 
-        # المجموع والنسبة (من المهام المنجزة فقط)
         max_possible = len(task_scores) * TASK_CONFIG["taskMaxScore"]
         total  = round(sum(task_scores), 1) if task_scores else 0
         pct    = round((total / max_possible * 100), 1) if max_possible > 0 else None
 
+        row["Bonus"]       = 0
         row["Total"]       = total
         row["Max_Possible"] = max_possible
         row["Percentage"]  = pct
         row["Grade"]       = letter_grade(pct)
-        row["Is_Dropout"]  = "نعم" if is_dropout(student["id"]) else "لا"
+        row["Is_Dropout"]  = "نعم" if is_dropout(sid) else "لا"
 
         rows.append(row)
 
     return pd.DataFrame(rows)
+
+
+def apply_competitive_bonuses(df):
+    """يطبّق مكافآت ترتيبية لـ G1 (حسب الدرجة) و G2 (حسب السرعة + الجودة)."""
+    tasks = TASK_CONFIG["tasks"]
+
+    g1_active = df[(df["Group"] == "G1") & (df["Is_Dropout"] == "لا")]
+    g1_sorted = g1_active.sort_values("Total", ascending=False).index
+    for rank, idx in enumerate(g1_sorted):
+        if rank < 3:
+            df.at[idx, "Bonus"] = 15
+        elif rank < 8:
+            df.at[idx, "Bonus"] = 5
+
+    g2_active = df[(df["Group"] == "G2") & (df["Is_Dropout"] == "لا")]
+    g2_data = []
+    for idx in g2_active.index:
+        late_count = sum(1 for t in tasks if df.at[idx, f"{t}_Late"] == "نعم")
+        g2_data.append((idx, late_count, df.at[idx, "Total"]))
+    g2_data.sort(key=lambda x: (x[1], -x[2]))
+    for rank, (idx, _, total) in enumerate(g2_data):
+        if rank < 3 and total >= 350:
+            df.at[idx, "Bonus"] = 20
+        elif rank < 6:
+            df.at[idx, "Bonus"] = 15
+        elif rank < 10:
+            df.at[idx, "Bonus"] = 10
+
+    mask = df["Bonus"] > 0
+    df.loc[mask, "Total"] = df.loc[mask, "Total"] + df.loc[mask, "Bonus"]
+    df.loc[mask, "Percentage"] = (
+        df.loc[mask, "Total"] / df.loc[mask, "Max_Possible"] * 100
+    ).round(1)
+    df.loc[mask, "Grade"] = df.loc[mask, "Percentage"].apply(letter_grade)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -436,7 +500,7 @@ def save_excel(df, output_path):
 
             # لون حسب المجموعة (عمودا ID و Group فقط)
             header_name = ws.cell(row=1, column=col_idx).value
-            if header_name in ("ID", "Name", "Group") and group in FILL_GROUP:
+            if header_name in ("ID", "Name", "Group", "Team") and group in FILL_GROUP:
                 cell.fill = FILL_GROUP[group]
 
         # تلوين خلايا التأخير
@@ -459,8 +523,8 @@ def save_excel(df, output_path):
 
     # ─── عرض الأعمدة ───────────────────────────────────────────
     col_widths = {
-        "ID": 12, "Name": 22, "Group": 8,
-        "Total": 10, "Max_Possible": 12, "Percentage": 10,
+        "ID": 12, "Name": 22, "Group": 8, "Team": 14,
+        "Bonus": 8, "Total": 10, "Max_Possible": 12, "Percentage": 10,
         "Grade": 8, "Is_Dropout": 10,
     }
     for task_name in tasks:
@@ -474,7 +538,7 @@ def save_excel(df, output_path):
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
     # ─── تجميد الصف الأول والأعمدة الثلاثة ─────────────────────
-    ws.freeze_panes = "D2"
+    ws.freeze_panes = "E2"
 
     # ─── ورقة ملخص المجموعات ────────────────────────────────────
     ws_summary = wb.create_sheet("Group_Summary")
@@ -561,46 +625,40 @@ def main():
     # ─── تحميل البيانات ─────────────────────────────────────────
     students = load_data(input_path)
 
-    # ─── تحديد الطلاب المتأخرين مسبقاً ─────────────────────────
-    late_set = set()
-    for student in students:
-        if student["group"] in TASK_CONFIG["lateGroups"]:
-            if rng.random() < TASK_CONFIG["lateRate"]:
-                late_set.add(student["id"])
-    sample = ", ".join(sorted(late_set)[:3]) + ("..." if len(late_set) > 3 else "")
-    print(f"[Late] طلاب مرشحون للتاخير: {len(late_set)} ({sample})")
+    # ─── حقن المتسربين إن لم يكونوا في الـ JSON ────────────────
+    inject_dropouts(students)
 
-    # ─── توليد درجات المهام ─────────────────────────────────────
-    print("[Scores] جاري توليد درجات المهام...")
-    all_results = []
-    for student in students:
-        results = generate_student_tasks(student, rng, late_set)
-        all_results.append(results)
+    # ─── تعيين الفرق (G3/G4 → فرق، G1/G2 → عمل فردي) ─────────
+    team_map = assign_teams(students)
+    team_count = sum(1 for v in team_map.values() if v != "عمل فردي")
+    print(f"[Teams] {team_count} طالب في فرق تشاركية")
 
-    # ─── تطبيق التسوية الجماعية (G3/G4) ────────────────────────
-    print("[Leveling] تطبيق التسوية الجماعية لـ G3/G4...")
-    apply_collaborative_leveling(all_results, students)
+    # ─── توليد النتائج (فرق + أفراد + توقيتات مرتبطة بالتدفق) ──
+    print("[Generate] جاري توليد درجات المهام والتوقيتات...")
+    all_results = generate_all_results(students, team_map, rng)
 
     # ─── تطبيق عقوبات التأخير ───────────────────────────────────
     print("[Penalty] تطبيق عقوبات التاخير لـ G2/G4...")
     apply_late_penalties(all_results)
 
-    # ─── توليد timestamps التسليم ───────────────────────────────
-    print("[Timestamps] توليد مواعيد التسليم...")
-    assign_timestamps(all_results, students, rng)
-
     # ─── بناء DataFrame ─────────────────────────────────────────
     print("[DataFrame] بناء جدول البيانات...")
-    df = build_dataframe(all_results, students)
+    df = build_dataframe(all_results, students, team_map)
+
+    # ─── مكافآت تنافسية لـ G1/G2 ────────────────────────────────
+    print("[Bonus] تطبيق المكافآت التنافسية لـ G1/G2...")
+    apply_competitive_bonuses(df)
 
     # ─── ملخص إحصائي ────────────────────────────────────────────
+    late_count = sum(1 for res_list in all_results
+                     for res in res_list if res.get("is_late"))
     print("\n" + "=" * 44)
     print("  ملخص جدول الدرجات")
     print("=" * 44)
     print(f"  اجمالي الطلاب  : {len(df)}")
     print(f"  طلاب فاعلون    : {len(df[df['Is_Dropout'] == 'لا'])}")
     print(f"  متسربون         : {len(df[df['Is_Dropout'] == 'نعم'])}")
-    print(f"  متاخرون          : {len(late_set)}")
+    print(f"  متاخرون          : {late_count}")
     print()
     for grp in ["G1", "G2", "G3", "G4"]:
         gdf = df[df["Group"] == grp]
