@@ -113,7 +113,7 @@ def generate_mcq_profiles(rng, students, settings):
         weak_factor = 1 + (pre["meanSkill"] - pre_skill) * imp["weakBonus"]
         group_bonus = g.get("improvementBonus", 0)
         improvement = (imp["base"] + group_bonus) * weak_factor + rng.normal(0, imp["variation"])
-        improvement = np.clip(improvement, 0.05, 0.50)
+        improvement = np.clip(improvement, -0.08, 0.50)
         
         # Post-test skill
         post_skill = pre_skill + improvement
@@ -230,7 +230,7 @@ def generate_flow_profiles(rng, profiles, settings):
         weak_factor = 1 + (pre["meanFlow"] - pre_flow) * imp["weakBonus"]
         group_bonus = g.get("improvementBonus", 0)
         improvement = (imp["base"] + group_bonus) * weak_factor + rng.normal(0, imp["variation"])
-        improvement = np.clip(improvement, 0.03, 0.45)
+        improvement = np.clip(improvement, -0.15, 0.45)
         
         # Post flow level
         post_flow = pre_flow + improvement
