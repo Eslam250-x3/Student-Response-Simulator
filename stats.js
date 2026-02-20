@@ -43,8 +43,8 @@ function printPhaseReport(scores, qCorrect, config, phaseName) {
     }
   }
 }
-  
-  
+
+
 /**
  * طباعة التقرير الإحصائي النهائي (قبلي vs بعدي)
  * @param {number[]} preScores
@@ -94,7 +94,9 @@ function printFinalReport(preScores, postScores, preQC, postQC, profiles, config
 
   const pooledSD = Math.sqrt((sdPre * sdPre + sdPost * sdPost) / 2);
   const cohensD = meanDiff / pooledSD;
+  const cohensDz = sdDiff > 0 ? meanDiff / sdDiff : 0; // d_z للتصميم المتكرر
   const etaSq = (tValue * tValue) / (tValue * tValue + df);
+  const pValue = approxPValue(tValue, df);
 
   Logger.log("\n╔══════════════════════════════════════════════════════╗");
   Logger.log("║          📊 التقرير الإحصائي النهائي                 ║");
@@ -108,14 +110,13 @@ function printFinalReport(preScores, postScores, preQC, postQC, profiles, config
   Logger.log("║                                                      ║");
   Logger.log("║  ═══ الدلالة الإحصائية ═══                           ║");
   Logger.log("║  t(" + df + ") = " + tValue.toFixed(4));
-  const requiredT = (config.settings && config.settings.statisticalTarget)
-    ? config.settings.statisticalTarget.requiredTValue : 2.89;
-  Logger.log("║  p " + estimatePValue(tValue, df, requiredT));
-  Logger.log("║  Cohen's d = " + cohensD.toFixed(4));
+  Logger.log("║  p " + estimatePValue(tValue, df));
+  Logger.log("║  Cohen's d_s (pooled) = " + cohensD.toFixed(4));
+  Logger.log("║  Cohen's d_z (repeated) = " + cohensDz.toFixed(4));
   Logger.log("║  η² = " + etaSq.toFixed(4));
   Logger.log("║  حجم التأثير: " + getEffectLabel(cohensD));
   Logger.log("║                                                      ║");
-  Logger.log("║  " + (tValue > requiredT ? "✅✅ دال عند 0.005 ✅✅" : "⚠️ تحقق يدوياً"));
+  Logger.log("║  " + (pValue < 0.005 ? "✅✅ دال عند 0.005 ✅✅" : "⚠️ تحقق يدوياً"));
   Logger.log("╚══════════════════════════════════════════════════════╝");
 
   Logger.log("\n📊 تحليل التحسن حسب المهارة:");
@@ -337,9 +338,9 @@ function printTwoWayANOVA(preDetails, postDetails, config) {
 
   // SS Between (Type I for balanced design)
   const SSA = nA0 * (meanA0 - grandMean) * (meanA0 - grandMean) +
-              nA1 * (meanA1 - grandMean) * (meanA1 - grandMean);
+    nA1 * (meanA1 - grandMean) * (meanA1 - grandMean);
   const SSB = nB0 * (meanB0 - grandMean) * (meanB0 - grandMean) +
-              nB1 * (meanB1 - grandMean) * (meanB1 - grandMean);
+    nB1 * (meanB1 - grandMean) * (meanB1 - grandMean);
 
   // SS Interaction
   let SSAxB = 0;
@@ -391,16 +392,17 @@ function printTwoWayANOVA(preDetails, postDetails, config) {
   Logger.log("║  Error\t\t" + SSE.toFixed(2) + "\t" + dfE + "\t" + MSE.toFixed(2));
   Logger.log("╠══════════════════════════════════════════════════════════════╣");
 
-  // تقدير الدلالة (F critical for df1=1, df2~76 at alpha=0.05 ~ 3.97)
-  const Fcrit05 = 3.97;
-  const Fcrit01 = 6.96;
-  Logger.log("║  F critical (0.05, 1, " + dfE + ") ~ " + Fcrit05.toFixed(2));
+  // F critical ديناميكي حسب درجات الحرية الفعلية
+  const Fcrit05 = approxFCritical(dfA, dfE, 0.05);
+  const Fcrit01 = approxFCritical(dfA, dfE, 0.01);
+  Logger.log("║  F critical (0.05, " + dfA + ", " + dfE + ") = " + Fcrit05.toFixed(2));
+  Logger.log("║  F critical (0.01, " + dfA + ", " + dfE + ") = " + Fcrit01.toFixed(2));
   Logger.log("║");
-  Logger.log("║  A (نوع التعلم): F=" + FA.toFixed(2) + " " +
+  Logger.log("║  A (نوع التعلم): F=" + FA.toFixed(2) + " | p " + estimateFPValue(FA, dfA, dfE) + " " +
     (FA > Fcrit01 ? "** دال عند 0.01" : FA > Fcrit05 ? "* دال عند 0.05" : "غير دال"));
-  Logger.log("║  B (ضغط زمني):  F=" + FB.toFixed(2) + " " +
+  Logger.log("║  B (ضغط زمني):  F=" + FB.toFixed(2) + " | p " + estimateFPValue(FB, dfB, dfE) + " " +
     (FB > Fcrit01 ? "** دال عند 0.01" : FB > Fcrit05 ? "* دال عند 0.05" : "غير دال"));
-  Logger.log("║  A x B (تفاعل): F=" + FAxB.toFixed(2) + " " +
+  Logger.log("║  A x B (تفاعل): F=" + FAxB.toFixed(2) + " | p " + estimateFPValue(FAxB, dfAxB, dfE) + " " +
     (FAxB > Fcrit01 ? "** دال عند 0.01" : FAxB > Fcrit05 ? "* دال عند 0.05" : "غير دال"));
   Logger.log("╠══════════════════════════════════════════════════════════════╣");
   Logger.log("║  متوسطات الخلايا (Gain Scores):");
@@ -478,8 +480,10 @@ function printBaselineEquivalence(preDetails, config) {
   }
   Logger.log("╠══════════════════════════════════════════════════════════════╣");
   Logger.log("║  F(" + dfB + "," + dfW + ") = " + F.toFixed(4));
-  // F critical for df1=3, df2~76 at 0.05 ~ 2.72
-  const Fcrit = 2.72;
+  // F critical ديناميكي
+  const Fcrit = approxFCritical(dfB, dfW, 0.05);
+  Logger.log("║  F critical (0.05, " + dfB + ", " + dfW + ") = " + Fcrit.toFixed(2));
+  Logger.log("║  p " + estimateFPValue(F, dfB, dfW));
   const sig = F > Fcrit ? "** المجموعات غير متكافئة!" : "المجموعات متكافئة قبليا";
   Logger.log("║  " + (F > Fcrit ? "⚠️ " : "✅ ") + sig);
   Logger.log("╚══════════════════════════════════════════════════════════════╝");
@@ -527,7 +531,7 @@ function printKR20(details, numQ, label) {
   }
 
   // تباين الدرجة الكلية
-  const varTotal = stdDev(scores) * stdDev(scores);
+  const varTotal = variance(scores);
   // KR-20 = (k / (k-1)) * (1 - sumPQ / varTotal)
   const kr20 = varTotal > 0 ? (numQ / (numQ - 1)) * (1 - sumPQ / varTotal) : 0;
 

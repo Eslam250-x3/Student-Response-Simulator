@@ -2,6 +2,30 @@
 //  🔧 utils.gs - الدوال المساعدة
 // ════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════
+//  نظام Logging مركزي
+// ═══════════════════════════════
+const LOG_LEVEL = { ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3 };
+let _currentLogLevel = LOG_LEVEL.INFO;
+
+/**
+ * تعيين مستوى الـ Logging
+ * @param {number} level - مستوى من LOG_LEVEL
+ */
+function setLogLevel(level) { _currentLogLevel = level; }
+
+/**
+ * Logging مركزي بمستويات
+ * @param {string} level - 'ERROR' | 'WARN' | 'INFO' | 'DEBUG'
+ * @param {string} msg - الرسالة
+ */
+function log(level, msg) {
+  const lvl = LOG_LEVEL[level] !== undefined ? LOG_LEVEL[level] : LOG_LEVEL.INFO;
+  if (lvl > _currentLogLevel) return;
+  const prefix = level === 'ERROR' ? '❌' : level === 'WARN' ? '⚠️' : level === 'DEBUG' ? '🔍' : '';
+  Logger.log((prefix ? prefix + ' ' : '') + msg);
+}
+
 /**
  * استخراج عناصر الاختيار من متعدد من الفورم
  * @param {GoogleAppsScript.Forms.Form} form - الفورم
@@ -18,22 +42,8 @@ function getMCQItems(form) {
   return mcq;
 }
 
-/**
- * استخراج عناصر Likert (اختيار من متعدد) من فورم المقياس
- * مشابهة لـ getMCQItems لكن مخصصة لمقياس التدفق
- * @param {GoogleAppsScript.Forms.Form} form - فورم مقياس التدفق
- * @returns {GoogleAppsScript.Forms.MultipleChoiceItem[]}
- */
-function getLikertItems(form) {
-  const items = form.getItems();
-  const likert = [];
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].getType() === FormApp.ItemType.MULTIPLE_CHOICE) {
-      likert.push(items[i].asMultipleChoiceItem());
-    }
-  }
-  return likert;
-}
+// getLikertItems = نفس getMCQItems (تمت إزالة التكرار)
+const getLikertItems = getMCQItems;
 
 /**
  * استخراج معرف الفورم من الرابط
@@ -122,10 +132,20 @@ function average(arr) {
  */
 function stdDev(arr) {
   if (arr.length <= 1) return 0;
+  return Math.sqrt(variance(arr));
+}
+
+/**
+ * حساب التباين (sample variance, n-1)
+ * @param {number[]} arr
+ * @returns {number}
+ */
+function variance(arr) {
+  if (arr.length <= 1) return 0;
   const avg = average(arr);
   let s = 0;
   for (let i = 0; i < arr.length; i++) s += (arr[i] - avg) * (arr[i] - avg);
-  return Math.sqrt(s / (arr.length - 1));
+  return s / (arr.length - 1);
 }
 
 function padNum(n, len) {
@@ -151,22 +171,126 @@ function getEffectLabel(d) {
   return "ضعيف";
 }
 
+// ═══════════════════════════════════════════
+//  حسابات إحصائية دقيقة (p-value و F-critical)
+// ═══════════════════════════════════════════
+
 /**
- * تقدير تقريبي لقيمة p من إحصائية t (للعرض فقط).
+ * تقريب دالة التوزيع التراكمي الطبيعي المعياري Φ(x)
+ * Abramowitz & Stegun approximation (خطأ < 1.5e-7)
+ * @param {number} x
+ * @returns {number}
+ */
+function normalCDF(x) {
+  if (x < -8) return 0;
+  if (x > 8) return 1;
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+  const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.SQRT2;
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return 0.5 * (1.0 + sign * y);
+}
+
+/**
+ * تقريب p-value من إحصائية t ودرجات الحرية
+ * يستخدم تقريب t → z (مناسب لـ df > 5)
+ * @param {number} tStat - إحصائية t
+ * @param {number} df - درجات الحرية
+ * @returns {number} p-value (two-tailed)
+ */
+function approxPValue(tStat, df) {
+  const t = Math.abs(tStat);
+  if (df <= 0) return 1;
+  if (df >= 1000) return 2 * (1 - normalCDF(t));
+
+  // تقريب Cornish-Fisher لتحويل t الى z
+  const g1 = (t * t + 1) / (4 * df);
+  const g2 = (5 * t * t * t * t + 16 * t * t + 3) / (96 * df * df);
+  const z = t * (1 - g1 + g2);
+  // fallback: تقريب أبسط لو df صغير
+  const zAlt = t * Math.pow(1 - 1 / (4 * df), -0.5) * Math.pow(1 + t * t / (2 * df), -0.5);
+  const zFinal = df < 10 ? zAlt : z;
+  return 2 * (1 - normalCDF(zFinal));
+}
+
+/**
+ * تقدير p-value وإرجاع نص معروض (backward-compatible)
  * @param {number} t - إحصائية t
- * @param {number} df - درجات الحرية (غير مستخدم في التقريب الحالي)
- * @param {number} [requiredTValue] - قيمة t الحرجة لـ alpha=0.005
+ * @param {number} df - درجات الحرية
+ * @param {number} [requiredTValue] - قيمة t الحرجة (غير مستخدمة - للتوافق)
  * @returns {string} نص معروض لقيمة p
  */
 function estimatePValue(t, df, requiredTValue) {
-  t = Math.abs(t);
-  const t005 = (requiredTValue !== undefined && requiredTValue !== null) ? requiredTValue : 2.89;
-  if (t > 5.0) return "< 0.0001 🔥🔥🔥";
-  if (t > 3.5) return "< 0.001 🔥🔥";
-  if (t > t005) return "< 0.005 ✅✅";
-  if (t > 2.64) return "< 0.01 ✅";
-  if (t > 1.99) return "< 0.05 ⚠️";
-  return "> 0.05 ❌";
+  const p = approxPValue(t, df);
+  if (p < 0.0001) return "= " + p.toExponential(2) + " 🔥🔥🔥";
+  if (p < 0.001) return "= " + p.toFixed(4) + " 🔥🔥";
+  if (p < 0.005) return "= " + p.toFixed(4) + " ✅✅";
+  if (p < 0.01) return "= " + p.toFixed(4) + " ✅";
+  if (p < 0.05) return "= " + p.toFixed(4) + " ⚠️";
+  return "= " + p.toFixed(4) + " ❌ (غير دال)";
+}
+
+/**
+ * تقريب F-critical باستخدام Wilson-Hilferty
+ * @param {number} df1 - درجات حرية البسط
+ * @param {number} df2 - درجات حرية المقام
+ * @param {number} [alpha=0.05] - مستوى الدلالة
+ * @returns {number} قيمة F الحرجة التقريبية
+ */
+function approxFCritical(df1, df2, alpha) {
+  alpha = alpha || 0.05;
+  // تحويل alpha الى z-score
+  // تقريب عكس الدالة التراكمية الطبيعية (Beasley-Springer-Moro)
+  const p = 1 - alpha;
+  const z = approxInvNorm(p);
+
+  // Wilson-Hilferty approximation
+  const v1 = 2 / (9 * df1);
+  const v2 = 2 / (9 * df2);
+  const num = Math.pow(1 - v2 + z * Math.sqrt(v2), 3);
+  const den = Math.pow(1 - v1 - z * Math.sqrt(v1), 3);
+  return den > 0 ? num / den : 9999;
+}
+
+/**
+ * تقريب عكس التوزيع الطبيعي (Beasley-Springer-Moro)
+ * @param {number} p - احتمال (0 < p < 1)
+ * @returns {number} z-score
+ */
+function approxInvNorm(p) {
+  if (p <= 0) return -8;
+  if (p >= 1) return 8;
+  // Rational approximation (Abramowitz & Stegun 26.2.23)
+  if (p < 0.5) return -approxInvNorm(1 - p);
+  const t = Math.sqrt(-2 * Math.log(1 - p));
+  const c0 = 2.515517, c1 = 0.802853, c2 = 0.010328;
+  const d1 = 1.432788, d2 = 0.189269, d3 = 0.001308;
+  return t - (c0 + c1 * t + c2 * t * t) / (1 + d1 * t + d2 * t * t + d3 * t * t * t);
+}
+
+/**
+ * تقريب p-value من F-statistic (للعرض)
+ * يستخدم تقريب t → z عبر Wilson-Hilferty
+ * @param {number} F - إحصائية F
+ * @param {number} df1
+ * @param {number} df2
+ * @returns {string} نص p-value
+ */
+function estimateFPValue(F, df1, df2) {
+  if (F <= 0 || df1 <= 0 || df2 <= 0) return "> 0.05 ❌";
+  // Wilson-Hilferty: transform F to approximate z
+  const v1 = 2 / (9 * df1);
+  const v2 = 2 / (9 * df2);
+  const Fthird = Math.pow(F, 1 / 3);
+  const z = ((1 - v2) * Fthird - (1 - v1)) / Math.sqrt(v2 * Fthird * Fthird + v1);
+  const p = 1 - normalCDF(z);
+  if (p < 0.0001) return "= " + p.toExponential(2) + " 🔥🔥";
+  if (p < 0.001) return "= " + p.toFixed(4) + " 🔥";
+  if (p < 0.01) return "= " + p.toFixed(4) + " **";
+  if (p < 0.05) return "= " + p.toFixed(4) + " *";
+  return "= " + p.toFixed(4) + " (غير دال)";
 }
 
 /**

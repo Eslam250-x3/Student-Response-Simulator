@@ -224,7 +224,7 @@ function generateFlowProfiles(flowConfig, baseProfiles) {
     const consMax = beh.consistencyMax || 0.95;
     const flowConsistency = consMin + rng() * (consMax - consMin);
 
-    p.preFlowLevel  = preFlow;
+    p.preFlowLevel = preFlow;
     p.postFlowLevel = postFlow;
     p.flowConsistency = flowConsistency;
   }
@@ -242,13 +242,13 @@ function generateFlowProfiles(flowConfig, baseProfiles) {
  * @returns {{totalScore: number, responses: number[]}}
  */
 function submitFlowResponse(form, likertItems, student, flowConfig, isDryRun) {
-  const items      = flowConfig.items;
-  const negSet     = {};
-  const negList    = flowConfig.negativeItems || [];
+  const items = flowConfig.items;
+  const negSet = {};
+  const negList = flowConfig.negativeItems || [];
   for (let k = 0; k < negList.length; k++) negSet[negList[k]] = true;
 
-  const noise      = (flowConfig.responseBehavior && flowConfig.responseBehavior.noiseLevel) || 0.18;
-  const flowLevel  = student.flowLevel;
+  const noise = (flowConfig.responseBehavior && flowConfig.responseBehavior.noiseLevel) || 0.18;
+  const flowLevel = student.flowLevel;
   const consistency = student.flowConsistency || 0.75;
 
   let response = null;
@@ -268,15 +268,37 @@ function submitFlowResponse(form, likertItems, student, flowConfig, isDryRun) {
 
   let totalScore = 0;
   const responses = [];
+  const dimDrift = {}; // انحراف عشوائي لكل بُعد (يُحسب مرة واحدة لكل بُعد)
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const isNeg = negSet[item.id] || item.isNegative;
 
-    // احتساب الدرجة الفعلية المتوقعة (1-5) بعد العكس
-    // ضجيج يتأثر بمعامل الاتساق
-    const noiseAdj = noise * (1 - consistency);
-    const raw = flowLevel * 4 + 1 + (rng() - 0.5) * noiseAdj * 4;
+    // ─── توليد استجابة واقعية لكل عبارة ───
+    // الضوضاء الأساسية: تنوع حقيقي بين العبارات (مستقل عن الاتساق)
+    // الاتساق: يتحكم في مدى ارتباط الإجابة بالمستوى الحقيقي
+    //
+    // بدون هذا التنوع، طالبة بـ flowLevel=0.5 ستجيب "أحياناً" على كل الـ 56 عبارة!
+
+    // drift حسب البُعد (كل بُعد من الـ 8 ممكن يختلف شوية)
+    const dimId = item.dimension || ("D" + Math.floor(i / 7 + 1));
+    if (!dimDrift[dimId]) {
+      // كل بُعد ليه انحراف عشوائي صغير (±0.15) عن المستوى العام
+      dimDrift[dimId] = (rng() - 0.5) * 0.30;
+    }
+
+    // تنوع حسب موقع العبارة (بداية ← وسط ← نهاية)
+    const positionEffect = (rng() - 0.5) * 0.10 * (i / items.length);
+
+    // الضجيج الأساسي: كل عبارة لها ضجيج مستقل
+    const itemNoise = (rng() - 0.5) * noise * 2.5;
+
+    // انحراف الاتساق: الطالب غير المتسق ينحرف أكثر
+    const consistencyNoise = (rng() - 0.5) * (1 - consistency) * 1.5;
+
+    // الدرجة النهائية = مستوى التدفق + drift البُعد + ضجيج العبارة + تأثير الموقع + ضجيج الاتساق
+    const adjustedLevel = flowLevel + dimDrift[dimId] + positionEffect + consistencyNoise;
+    const raw = adjustedLevel * 4 + 1 + itemNoise;
     const effectiveScore = Math.round(clamp(raw, 1, 5));
 
     // الدرجة الخام التي تُختار في الفورم

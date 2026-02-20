@@ -11,9 +11,11 @@ function onOpen() {
     SpreadsheetApp.getUi().createMenu('محاكاة الاختبار')
       .addItem('تشغيل القبلي', 'runPreTest')
       .addItem('تشغيل البعدي', 'runPostTest')
+      .addItem('استئناف المحاكاة', 'resumeSimulation')
       .addSeparator()
       .addItem('حالة المحاكاة', 'checkStatus')
       .addItem('تصدير النتائج في Sheet', 'exportToSheet')
+      .addItem('تصدير بيانات الطالبات', 'exportStudentsToSheet')
       .addSeparator()
       .addItem('ايقاف المحاكاة', 'stopSimulation')
       .addItem('اعادة تعيين', 'resetAll')
@@ -42,12 +44,12 @@ function exportToSheet() {
 
   let config, profiles, preDetails, postDetails, preScores, postScores;
   try {
-    config = JSON.parse(props.getProperty('CONFIG'));
-    profiles = JSON.parse(props.getProperty('PROFILES'));
+    config = JSON.parse(safeGetProperty(props, 'CONFIG'));
+    profiles = JSON.parse(safeGetProperty(props, 'PROFILES'));
     preScores = JSON.parse(props.getProperty('PRE_SCORES') || '[]');
     postScores = JSON.parse(props.getProperty('POST_SCORES') || '[]');
-    preDetails = JSON.parse(props.getProperty('PRE_DETAILS') || '[]');
-    postDetails = JSON.parse(props.getProperty('POST_DETAILS') || '[]');
+    preDetails = JSON.parse(safeGetProperty(props, 'PRE_DETAILS') || '[]');
+    postDetails = JSON.parse(safeGetProperty(props, 'POST_DETAILS') || '[]');
   } catch (e) {
     Logger.log("❌ خطأ في قراءة البيانات: " + e.message);
     return;
@@ -73,9 +75,9 @@ function exportToSheet() {
   const header = ["ID", "Name", "Email", "Group", "Pre", "Post", "Diff", "Pre%", "Post%"];
   for (let q = 1; q <= numQ; q++) header.push("PreQ" + q);
   for (let q = 1; q <= numQ; q++) header.push("PostQ" + q);
-  dataSheet.appendRow(header);
 
-  // البيانات
+  // بناء كل البيانات في مصفوفة ثم كتابتها دفعة واحدة (بدل appendRow في loop)
+  const allRows = [];
   for (let i = 0; i < students.length; i++) {
     const sid = students[i].id;
     const pre = preMap[sid];
@@ -94,7 +96,13 @@ function exportToSheet() {
     ];
     for (let q = 0; q < numQ; q++) row.push(preCorr && preCorr[q] !== undefined ? +preCorr[q] : "");
     for (let q = 0; q < numQ; q++) row.push(postCorr && postCorr[q] !== undefined ? +postCorr[q] : "");
-    dataSheet.appendRow(row);
+    allRows.push(row);
+  }
+
+  // كتابة دفعة واحدة: header + data
+  dataSheet.getRange(1, 1, 1, header.length).setValues([header]);
+  if (allRows.length > 0) {
+    dataSheet.getRange(2, 1, allRows.length, header.length).setValues(allRows);
   }
 
   // تنسيق الرأس
