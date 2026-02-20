@@ -1,0 +1,25 @@
+# .gitignore contents
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Specific
+_pdf_out.txt
+_docx_out.txt
+_docs_output.txt
+extracted_config.json
+.clasp.json
+simulation_data.json
+tadafok.json
+
+# Markdown output
+تحليل_النتائج.md
