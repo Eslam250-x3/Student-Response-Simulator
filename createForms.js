@@ -22,7 +22,7 @@ function createMCQForm() {
 
   const form = FormApp.create(title);
   form.setDescription("اختبار مهارات حل المشكلات الأخلاقية البيوطبية")
-      .setIsQuiz(false)
+      .setIsQuiz(true)
       .setAllowResponseEdits(false)
       .setLimitOneResponsePerUser(false)
       .setShuffleQuestions(false);
@@ -30,7 +30,7 @@ function createMCQForm() {
   // ── سؤال الإيميل (index 0) ──
   form.addTextItem()
       .setTitle("البريد الإلكتروني")
-      .setHelpText("أدخل بريدك الإلكتروني الجامعي")
+      .setHelpText("أدخل بريدك الإلكتروني")
       .setRequired(true);
 
   // ── الأسئلة الـ 30 ──
@@ -38,8 +38,12 @@ function createMCQForm() {
     var q = questions[i];
     var item = form.addMultipleChoiceItem();
     item.setTitle("السؤال " + q.order + ": " + q.text)
-        .setChoiceValues(q.choices)
         .setRequired(true);
+    var choiceObjs = [];
+    for (var c = 0; c < q.choices.length; c++) {
+      choiceObjs.push(item.createChoice(q.choices[c], c === q.correctAnswer));
+    }
+    item.setChoices(choiceObjs).setPoints(1);
   }
 
   var formId  = form.getId();
@@ -85,7 +89,7 @@ function createFlowForm() {
   // ── سؤال الإيميل (index 0) ──
   form.addTextItem()
       .setTitle("البريد الإلكتروني")
-      .setHelpText("أدخل بريدك الإلكتروني الجامعي")
+      .setHelpText("أدخل بريدك الإلكتروني")
       .setRequired(true);
 
   // ── بناء خريطة index للأبعاد لكل عبارة ──
