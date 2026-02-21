@@ -44,6 +44,81 @@ const SCHEDULE_CONFIG = {
 // ─── الأدوات المساعدة ──────────────────────────────────────────
 
 /**
+ * يتحقق من تطابق بنية الفورم مع simulation_data قبل الإرسال.
+ * يمنع إرسال بيانات خاطئة عند اختلاف ترتيب الأسئلة أو عددها.
+ * @param {Object} data - بيانات المحاكاة (من loadSimulationData)
+ * @param {string} [checkForm] - "mcq" | "flow" | "both" (افتراضي: both)
+ * @returns {{valid: boolean, errors: string[]}}
+ */
+function verifyFormStructure(data, checkForm) {
+    const errors = [];
+    const meta = data.metadata || {};
+    const expectedMCQ = meta.numMCQ || 30;
+    const expectedFlow = meta.numFlowItems || 56;
+    const checkMCQ = !checkForm || checkForm === "mcq" || checkForm === "both";
+    const checkFlow = !checkForm || checkForm === "flow" || checkForm === "both";
+
+    function countFormItems(form, itemType) {
+        const items = form.getItems();
+        let count = 0;
+        let badChoices = [];
+        for (let i = 0; i < items.length; i++) {
+            const t = items[i].getType();
+            if (t === FormApp.ItemType.MULTIPLE_CHOICE || t === FormApp.ItemType.LIST) {
+                const choices = t === FormApp.ItemType.MULTIPLE_CHOICE
+                    ? items[i].asMultipleChoiceItem().getChoices()
+                    : items[i].asListItem().getChoices();
+                count++;
+                if (itemType === "mcq" && choices.length !== 4) {
+                    badChoices.push("سؤال " + count + ": " + choices.length + " خيارات بدل 4");
+                }
+                if (itemType === "flow" && choices.length !== 5) {
+                    badChoices.push("بند " + count + ": " + choices.length + " خيارات بدل 5");
+                }
+            }
+        }
+        return { count: count, badChoices: badChoices };
+    }
+
+    if (checkMCQ && MCQ_FORM_URL) {
+        try {
+            const form = FormApp.openByUrl(MCQ_FORM_URL);
+            const result = countFormItems(form, "mcq");
+            if (result.count !== expectedMCQ) {
+                errors.push("فورم MCQ: عدد الأسئلة " + result.count + " (المتوقع من simulation_data: " + expectedMCQ + ")");
+            }
+            if (result.badChoices.length > 0) {
+                errors.push("فورم MCQ: " + result.badChoices.slice(0, 3).join("؛ ") + (result.badChoices.length > 3 ? "..." : ""));
+            }
+        } catch (e) {
+            errors.push("فورم MCQ: فشل فتح الفورم — " + e.message);
+        }
+    }
+
+    if (checkFlow && FLOW_FORM_URL) {
+        try {
+            const form = FormApp.openByUrl(FLOW_FORM_URL);
+            const result = countFormItems(form, "flow");
+            if (result.count !== expectedFlow) {
+                errors.push("فورم Flow: عدد البنود " + result.count + " (المتوقع من simulation_data: " + expectedFlow + ")");
+            }
+            if (result.badChoices.length > 0) {
+                errors.push("فورم Flow: " + result.badChoices.slice(0, 3).join("؛ ") + (result.badChoices.length > 3 ? "..." : ""));
+            }
+        } catch (e) {
+            errors.push("فورم Flow: فشل فتح الفورم — " + e.message);
+        }
+    }
+
+    if (errors.length > 0) {
+        Logger.log("❌ تحقق البنية فشل:");
+        for (let j = 0; j < errors.length; j++) Logger.log("   • " + errors[j]);
+        Logger.log("💡 تأكد أن الفورمات مُنشأة من createMCQForm/createFlowForm ونفس config المستخدم في generate_simulation.");
+    }
+    return { valid: errors.length === 0, errors: errors };
+}
+
+/**
  * تحميل بيانات المحاكاة من Google Drive JSON
  */
 function loadSimulationData() {
@@ -182,6 +257,11 @@ function submitFlowResponse(form, student, phase) {
  */
 function submitAllFromJSON() {
     const data = loadSimulationData();
+    const verification = verifyFormStructure(data, "both");
+    if (!verification.valid) {
+        Logger.log("🛑 تم إيقاف الإرسال — راجع الأخطاء أعلاه");
+        return;
+    }
     const students = data.students;
 
     Logger.log("═══════════════════════════════════════════");
@@ -276,6 +356,11 @@ function submitAllFromJSON() {
  */
 function submitMCQOnly() {
     const data = loadSimulationData();
+    const verification = verifyFormStructure(data, "mcq");
+    if (!verification.valid) {
+        Logger.log("🛑 تم إيقاف الإرسال — راجع الأخطاء أعلاه");
+        return;
+    }
     const form = FormApp.openByUrl(MCQ_FORM_URL);
 
     Logger.log("📋 إرسال MCQ لـ " + data.students.length + " طالبة...");
@@ -299,6 +384,11 @@ function submitMCQOnly() {
  */
 function submitFlowOnly() {
     const data = loadSimulationData();
+    const verification = verifyFormStructure(data, "flow");
+    if (!verification.valid) {
+        Logger.log("🛑 تم إيقاف الإرسال — راجع الأخطاء أعلاه");
+        return;
+    }
     const form = FormApp.openByUrl(FLOW_FORM_URL);
 
     Logger.log("🌊 إرسال Flow لـ " + data.students.length + " طالبة...");
@@ -323,6 +413,17 @@ function submitFlowOnly() {
 function resetSubmitState() {
     PropertiesService.getScriptProperties().deleteProperty("SUBMIT_STATE");
     Logger.log("✅ تم مسح حالة الإرسال");
+}
+
+/**
+ * استدعاء التحقق من القائمة (يعرض النتيجة في Log)
+ */
+function verifyFormsFromMenu() {
+    const data = loadSimulationData();
+    const v = verifyFormStructure(data, "both");
+    if (v.valid) {
+        Logger.log("✅ التحقق: الفورمات متطابقة مع simulation_data");
+    }
 }
 
 /**
@@ -492,6 +593,12 @@ function runPreTestJSON() {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
     }
 
+    const verification = verifyFormStructure(data, "both");
+    if (!verification.valid) {
+        Logger.log("🛑 تم إيقاف البدء — راجع الأخطاء أعلاه");
+        return;
+    }
+
     const lightStudents = data.students.map(function (s) {
         return { id: s.id, email: s.email, mcq_pre_responses: s.mcq_pre_responses, flow_pre_responses: s.flow_pre_responses };
     });
@@ -556,6 +663,12 @@ function runPostTestJSON() {
     let data;
     try { data = loadSimulationData(); } catch (e) {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
+    }
+
+    const verification = verifyFormStructure(data, "both");
+    if (!verification.valid) {
+        Logger.log("🛑 تم إيقاف البدء — راجع الأخطاء أعلاه");
+        return;
     }
 
     const lightStudents = data.students.map(function (s) {
@@ -813,6 +926,7 @@ function onOpen() {
     const ui = SpreadsheetApp.getUi();
     ui.createMenu("📤 إرسال المحاكاة")
         .addItem("👀 معاينة البيانات", "previewData")
+        .addItem("🔍 التحقق من تطابق الفورمات", "verifyFormsFromMenu")
         .addSeparator()
         .addSubMenu(
             ui.createMenu("⏱️ مجدوَل — Smart Queue (ساعتين فجوة)")

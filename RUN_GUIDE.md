@@ -27,7 +27,7 @@
 | **Python 3.8+** | تشغيل `generate_simulation.py` و `generate_tasks_gradebook.py` |
 | **pip** | تثبيت المكتبات |
 | **حساب Google** | Drive + Forms + Apps Script |
-| **ملف الإعداد** | `extracted_config.json` (أو يستخدم الإعدادات الافتراضية) |
+| **ملف الإعداد** | `config.json` (مصدر واحد — يُنشأ بـ extract_to_config_json.py) |
 
 تثبيت مكتبات البايثون:
 
@@ -56,7 +56,7 @@ pip install -r requirements.txt
    ```
    أو مع ملف إعداد مخصّص:
    ```bash
-   python generate_simulation.py --config extracted_config.json
+   python generate_simulation.py --config config.json
    ```
 
 3. تأكد من ظهور الملف:
@@ -214,11 +214,12 @@ pip install -r requirements.txt
 
 | الملف | الوظيفة |
 |-------|----------|
-| **generate_simulation.py** | يولّد `simulation_data.json` (96 طالب، قبلي/بعدي) |
+| **config.json** | مصدر واحد للإعدادات (أسئلة MCQ، بنود Flow، طلاب) |
+| **generate_simulation.py** | يقرأ config.json ويولّد `simulation_data.json` |
+| **generate_config_js.py** | يولّد config.js و config_flow.js من config.json (قبل clasp push) |
 | **simulation_data.json** | مصدر موحد للإرسال ودفتر المهام |
-| **submit_from_json.js** | يقرأ JSON من Drive ويرسل إلى فورمات MCQ و Flow |
+| **submit_from_json.js** | يقرأ JSON من Drive ويرسل إلى فورمات MCQ و Flow (يتحقق من البنية قبل الإرسال) |
 | **generate_tasks_gradebook.py** | يقرأ JSON ويولّد `tasks_gradebook.xlsx` |
-| **students.js** | بيانات الطالبات (للشيت/للمشروع؛ الإرسال يعتمد على JSON) |
 
 ---
 

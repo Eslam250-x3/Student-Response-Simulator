@@ -9,7 +9,7 @@
   الاستخدام:
     python generate_simulation.py
     python generate_simulation.py --seed 42
-    python generate_simulation.py --config extracted_config.json
+    python generate_simulation.py --config config.json
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -659,6 +659,10 @@ def run_simulation(config_path, seed=None, output_path=None):
         config = json.load(f)
     
     questions = config["questions"]
+    # تطبيع: إضافة numChoices إن لم يكن موجوداً (config.json يستخدم choices فقط)
+    for q in questions:
+        if "numChoices" not in q and "choices" in q:
+            q["numChoices"] = len(q["choices"])
     flow_items = config["flow"]["items"]
     neg_items_set = set(config["flow"].get("negativeItems", []))
     students = config["students"]
@@ -818,7 +822,7 @@ def run_simulation(config_path, seed=None, output_path=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="مولّد بيانات محاكاة الاختبار")
-    parser.add_argument("--config", default="extracted_config.json", help="ملف الإعدادات JSON")
+    parser.add_argument("--config", default="config.json", help="ملف الإعدادات JSON")
     parser.add_argument("--seed", type=int, default=None, help="Seed للتكرارية")
     parser.add_argument("--output", default=None, help="مسار ملف الخارج")
     args = parser.parse_args()
@@ -829,8 +833,8 @@ if __name__ == "__main__":
     
     if not os.path.exists(config_path):
         print(f"❌ الملف غير موجود: {config_path}")
-        print("💡 شغّل extract_config.py أولاً:")
-        print("   python extract_config.py")
+        print("💡 شغّل extract_to_config_json.py أولاً لإنشاء config.json:")
+        print("   python extract_to_config_json.py")
         sys.exit(1)
     
     run_simulation(config_path, seed=args.seed, output_path=args.output)
