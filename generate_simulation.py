@@ -35,8 +35,8 @@ DEFAULT_SETTINGS = {
     "behavior": {
         "consistencyMin": 0.55, "consistencyMax": 0.95,
         "fatigueMax": 0.12, "fatigueStartQuestion": 20,
-        "guessingBase": 0.25,     # c parameter (3PL)
-        "discrimination": 1.7,    # a parameter (3PL)
+        "guessingBase": 0.18,     # c parameter (3PL) — reduced for better KR-20
+        "discrimination": 2.2,    # a parameter (3PL) — increased for better KR-20
         "consistencyFactor": 0.25,
         "probMin": 0.08, "probMax": 0.96,
         "attractBase": 0.55, "attractSkillFactor": 0.25
@@ -95,48 +95,58 @@ def irt_3pl(skill, difficulty, discrimination=1.7, guessing=0.25):
 
 
 def generate_mcq_profiles(rng, students, settings):
-    """Generate MCQ skill profiles for all students."""
+    """Generate MCQ skill profiles with stratified preSkill for baseline equivalence."""
     pre = settings["preTest"]
     post = settings["postTest"]
     imp = settings["improvement"]
     gfx = settings["groupEffects"]
-    
+
+    # توزيع طبقي: قائمة مهارات واحدة متوازنة وتوزيعها على المجموعات
+    num_active = len([s for s in students if not (s.get("isDropout", False) or s["id"] in [f"STD-{i:03d}" for i in range(81, 97)])])
+    base_skills = rng.normal(pre["meanSkill"], pre["skillSpread"], len(students))
+    base_skills = np.clip(base_skills, pre["minSkill"], pre["maxSkill"])
+    base_skills = np.sort(base_skills)
+
+    # ترتيب round-robin حسب المجموعة لضمان ANOVA p > 0.05
+    students_by_group = {g: [s for s in students if s["group"] == g] for g in ["G1", "G2", "G3", "G4"]}
+    ordered_students = []
+    for r in range(max(len(students_by_group.get(g, [])) for g in ["G1", "G2", "G3", "G4"])):
+        for g in ["G1", "G2", "G3", "G4"]:
+            if r < len(students_by_group.get(g, [])):
+                ordered_students.append(students_by_group[g][r])
+    skill_map = {s["id"]: float(base_skills[i]) for i, s in enumerate(ordered_students)}
+
     profiles = []
     for s in students:
         g = gfx.get(s["group"], {"improvementBonus": 0, "skillSpreadMod": 0})
-        
-        # Pre-test skill
-        pre_skill = rng.normal(pre["meanSkill"], pre["skillSpread"])
-        pre_skill = np.clip(pre_skill, pre["minSkill"], pre["maxSkill"])
-        
+        pre_skill = skill_map[s["id"]]
+
         # المتسربون: انحياز سالب في القبلي (أضعف → أكثر عرضة للانسحاب)
-        is_dropout = s.get("isDropout", False) or s["id"] in [
-            f"STD-{i:03d}" for i in range(81, 97)
-        ]
+        is_dropout = s.get("isDropout", False) or s["id"] in [f"STD-{i:03d}" for i in range(81, 97)]
         if is_dropout:
             pre_skill = pre_skill - 0.12
             pre_skill = max(pre_skill, pre["minSkill"])
-        
+
         # Improvement (weaker students improve more)
         weak_factor = 1 + (pre["meanSkill"] - pre_skill) * imp["weakBonus"]
         group_bonus = g.get("improvementBonus", 0)
         improvement = (imp["base"] + group_bonus) * weak_factor + rng.normal(0, imp["variation"])
         improvement = np.clip(improvement, -0.08, 0.50)
-        
+
         # Post-test skill
         post_skill = pre_skill + improvement
         post_skill = np.clip(post_skill, post["minSkill"], post["maxSkill"])
-        
+
         # Consistency
         beh = settings["behavior"]
         consistency = rng.uniform(beh["consistencyMin"], beh["consistencyMax"])
-        
+
         profiles.append({
             "id": s["id"], "name": s["name"], "email": s["email"], "group": s["group"],
             "preSkill": float(pre_skill), "postSkill": float(post_skill),
             "improvement": float(improvement), "consistency": float(consistency)
         })
-    
+
     return profiles
 
 
@@ -194,7 +204,7 @@ def generate_mcq_responses(rng, profile, questions, skill, settings, q_discrimin
         prob = irt_3pl(irt_ability, irt_difficulty, a, c)
         
         # Minimal consistency noise (too much → kills KR-20 covariance)
-        noise = rng.normal(0, (1 - profile["consistency"]) * 0.04)
+        noise = rng.normal(0, (1 - profile["consistency"]) * 0.025)
         prob = np.clip(prob + noise, beh["probMin"], beh["probMax"])
         
         is_correct = rng.random() < prob
@@ -675,9 +685,9 @@ def run_simulation(config_path, seed=None, output_path=None):
         generate_flow_profiles(rng, profiles, settings)
         
         # Generate per-question discrimination values (lognormal for realistic IRT variance)
-        # Higher mean + sigma = better item discrimination = better KR-20
+        # Higher mean + lower sigma = better item discrimination = better KR-20
         q_discriminations = np.clip(
-            rng.lognormal(mean=np.log(2.0), sigma=0.45, size=len(questions)),
+            rng.lognormal(mean=np.log(2.4), sigma=0.35, size=len(questions)),
             0.8, 4.0
         ).tolist()
         

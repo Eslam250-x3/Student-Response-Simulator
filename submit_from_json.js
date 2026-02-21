@@ -533,11 +533,23 @@ function runPreTestJSON() {
     if (!MCQ_FORM_URL) { Logger.log("❌ ضع MCQ_FORM_URL في أعلى الملف"); return; }
     if (!FLOW_FORM_URL) { Logger.log("⚠️ FLOW_FORM_URL فارغ — سيتم تخطي مقياس التدفق"); }
 
+    var lockKey = "JSON_LAST_START_PRE";
+    var lastStart = parseInt(props.getProperty(lockKey) || "0");
+    if (Date.now() - lastStart < 60000) {
+        Logger.log("❌ انتظر دقيقة على الأقل قبل إعادة التشغيل");
+        return;
+    }
+
     Logger.log("📂 جارٍ تحميل simulation_data.json...");
     var data;
     try { data = loadSimulationData(); } catch (e) {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
     }
+
+    var lightStudents = data.students.map(function (s) {
+        return { id: s.id, email: s.email, mcq_pre_responses: s.mcq_pre_responses, flow_pre_responses: s.flow_pre_responses };
+    });
+    safeSetProperty(props, "STUDENTS_CACHE_PRE", JSON.stringify(lightStudents));
 
     var queue = buildSmartQueue(data.students, "pre", false);
 
@@ -554,6 +566,7 @@ function runPreTestJSON() {
     props.setProperty("JSON_PHASE", "PRE");
     props.setProperty("JSON_STATE", "PRE_RUNNING");
     props.setProperty("JSON_FILE_ID", fileId);
+    props.setProperty(lockKey, String(Date.now()));
 
     setupJSONTrigger(SCHEDULE_CONFIG.triggerIntervalMinutes);
 
@@ -586,11 +599,23 @@ function runPostTestJSON() {
     var fileId = SIMULATION_FILE_ID || props.getProperty("JSON_FILE_ID") || props.getProperty("SIMULATION_FILE_ID");
     if (!fileId) { Logger.log("❌ ضع SIMULATION_FILE_ID في أعلى الملف"); return; }
 
+    var lockKey = "JSON_LAST_START_POST";
+    var lastStart = parseInt(props.getProperty(lockKey) || "0");
+    if (Date.now() - lastStart < 60000) {
+        Logger.log("❌ انتظر دقيقة على الأقل قبل إعادة التشغيل");
+        return;
+    }
+
     Logger.log("📂 جارٍ تحميل simulation_data.json...");
     var data;
     try { data = loadSimulationData(); } catch (e) {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
     }
+
+    var lightStudents = data.students.map(function (s) {
+        return { id: s.id, email: s.email, mcq_post_responses: s.mcq_post_responses, flow_post_responses: s.flow_post_responses };
+    });
+    safeSetProperty(props, "STUDENTS_CACHE_POST", JSON.stringify(lightStudents));
 
     // بناء الطابور مع استثناء المتسربين
     var queue = buildSmartQueue(data.students, "post", true);
@@ -608,6 +633,7 @@ function runPostTestJSON() {
     props.setProperty("JSON_PHASE", "POST");
     props.setProperty("JSON_STATE", "POST_RUNNING");
     props.setProperty("JSON_FILE_ID", fileId);
+    props.setProperty(lockKey, String(Date.now()));
 
     setupJSONTrigger(SCHEDULE_CONFIG.triggerIntervalMinutes);
 
@@ -647,19 +673,11 @@ function processSmartQueue() {
         var maxRetries = SCHEDULE_CONFIG.maxRetries || 3;
         var sent = 0;
 
-        // تحميل الـ JSON من Drive مرة واحدة
-        var data;
-        try {
-            data = loadSimulationData();
-        } catch (e) {
-            Logger.log("❌ فشل تحميل simulation_data.json: " + e.message);
-            return;
-        }
-
-        // بناء map للبحث السريع بالـ ID
+        // قراءة من الكاش بدلاً من Drive API (تجنب استنزاف الحصة)
+        var students = JSON.parse(safeGetProperty(props, "STUDENTS_CACHE_" + phase) || "[]");
         var studentMap = {};
-        for (var j = 0; j < data.students.length; j++) {
-            studentMap[data.students[j].id] = data.students[j];
+        for (var j = 0; j < students.length; j++) {
+            studentMap[students[j].id] = students[j];
         }
 
         // فتح الفورمات مرة واحدة

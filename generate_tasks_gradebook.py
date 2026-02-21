@@ -99,6 +99,9 @@ GRADE_THRESHOLDS = [
 # منحنى التعلم البشري (S-curve): تعلم سريع في البداية ثم يثبت
 LEARNING_RATIOS = [0.0, 0.40, 0.70, 0.90, 1.0]
 
+# أوزان المهام (M3 الأهم = 30) — تذبذب أكبر للمهام الأصعب
+TASK_WEIGHTS = [10, 15, 30, 20, 25]
+
 
 # ════════════════════════════════════════════════════════════════
 #  قراءة البيانات
@@ -198,17 +201,17 @@ def is_dropout(student_id):
 def generate_student_tasks(student, rng):
     """
     يولّد نتائج المهام لطالب واحد (أو متوسط فريق).
-    التأخير مُستنتَج من postFlowLevel (تدفق عالٍ = التزام، منخفض = تأخير).
+    التأخير مُستنتَج من التدفق الديناميكي (قبلي→بعدي) — M1 يستخدم preFlow، M5 يستخدم postFlow.
     """
     pre_skill  = student["preSkill"] or 0.25
     post_skill = student["postSkill"] or (pre_skill * 1.05)  # fallback للمتسربين
+    pre_flow   = student.get("preFlowLevel") or 0.40
     post_flow  = student.get("postFlowLevel") or 0.30        # fallback للمتسربين
     group      = student["group"]
     sid        = student["id"]
 
     noise_sd     = get_task_noise_sd(group)
     collab_bonus = get_collaborative_bonus(group)
-    flow_adj     = (post_flow - 0.5) * TASK_CONFIG["flowWeight"]
     dropout      = is_dropout(sid)
 
     results   = []
@@ -226,9 +229,13 @@ def generate_student_tasks(student, rng):
 
         task_progress = LEARNING_RATIOS[task_idx]
         skill_i = pre_skill + task_progress * (post_skill - pre_skill)
+        flow_i  = pre_flow + task_progress * (post_flow - pre_flow)
 
+        flow_adj = (flow_i - 0.5) * TASK_CONFIG["flowWeight"]
+
+        weight_factor = np.sqrt(TASK_WEIGHTS[task_idx] / 20.0)
         base  = skill_to_base(skill_i)
-        noise = rng.normal(0, noise_sd)
+        noise = rng.normal(0, noise_sd * weight_factor)
         raw   = base + collab_bonus + flow_adj + noise
 
         # دفعة تشاركية خاصة للمهمة الثالثة (M3: التحليل الأخلاقي) — +10% لـ G3/G4
@@ -242,10 +249,10 @@ def generate_student_tasks(student, rng):
         late_flag = False
 
         if group in TASK_CONFIG["lateGroups"]:
-            # التدفق العالي = تأخير أقل، التدفق المنخفض = تأخير أكبر
-            # المتوسط السالب لأغلب الطلاب = تسليم في الوقت
-            expected_delay_hours = -10.0 + (1.0 - post_flow) * 20.0
-            delay = rng.normal(expected_delay_hours, 3.5)
+            # التدفق الديناميكي: M1 = قبلي، M5 = بعدي
+            expected_delay_hours = -10.0 + (1.0 - flow_i) * 20.0
+            delay_sd = 1.5 if group == "G4" else 3.0  # الفرق أقل تذبذباً (Peer Pressure)
+            delay = rng.normal(expected_delay_hours, delay_sd)
 
             # حقن قيم متطرفة (5%): طالب متميز يتأخر لظرف طارئ
             # يكسر الخطية المصطنعة في العلاقة بين التدفق والتأخير
@@ -362,8 +369,20 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
         if group in TASK_CONFIG["lateGroups"]:
             if res["is_late"] and res.get("hours_late", 0) > 0:
                 submit_time = deadline + timedelta(hours=res["hours_late"])
-                # تصحيح وقت الفجر: ضمان الهبوط في نافذة 18:00-22:00
-                if 0 <= submit_time.hour <= 8:
+                # فخ عطلة نهاية الأسبوع: طالب تدفق منخفض + جمعة فجرًا → غير واقعي
+                if submit_time.weekday() == 4 and 0 <= submit_time.hour <= 6 and flow_i < 0.5:
+                    days_ahead = 1 if (submit_time + timedelta(days=1)).date() <= deadline.date() else 0
+                    if days_ahead == 0 and (submit_time + timedelta(days=2)).date() <= deadline.date():
+                        days_ahead = 2
+                    if days_ahead > 0:
+                        submit_time = submit_time + timedelta(days=days_ahead)
+                        submit_time = submit_time.replace(
+                            hour=int(rng.integers(18, 23)),
+                            minute=int(rng.integers(0, 60)),
+                            second=0
+                        )
+                elif 0 <= submit_time.hour <= 8:
+                    # تصحيح وقت الفجر: ضمان الهبوط في نافذة 18:00-22:00
                     shift_hours = submit_time.hour + random.randint(2, 6)
                     submit_time -= timedelta(hours=shift_hours)
             else:
@@ -404,30 +423,35 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
             res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
 
 
-def apply_late_penalties(all_results):
+def apply_late_penalties(all_results, students):
     """
     يطبّق عقوبة التأخير بناءً على الإطار النظري:
-    - تأخير (0 إلى 6 ساعات): خصم 30%
-    - تأخير (6 إلى 24 ساعة): خصم 60%
-    - تأخير (أكثر من 24 ساعة): المهمة 0
+    - G2 (فردي): 0–6h خصم 30% | 6–24h خصم 60% | >24h صفر
+    - G4 (فريق): عقوبات أخف (Peer Pressure يقلل التأخير)
     """
-    for student_results in all_results:
+    for i, student_results in enumerate(all_results):
+        group = students[i]["group"] if i < len(students) else "G2"
         for res in student_results:
             if res["score"] is None or not res["is_late"]:
                 continue
 
-            # التأخير بالساعات
             delay_hours = res.get("hours_late", 0)
 
-            if 0 < delay_hours <= 6:
-                # خصم 30%
-                res["score"] = float(np.clip(res["score"] * 0.70, 0, TASK_CONFIG["taskMaxScore"]))
-            elif 6 < delay_hours <= 24:
-                # خصم 60%
-                res["score"] = float(np.clip(res["score"] * 0.40, 0, TASK_CONFIG["taskMaxScore"]))
-            elif delay_hours > 24:
-                # صفر
-                res["score"] = 0.0
+            if group == "G4":
+                # عقوبات أخف للفرق التشاركية
+                if 0 < delay_hours <= 6:
+                    res["score"] = float(np.clip(res["score"] * 0.85, 0, TASK_CONFIG["taskMaxScore"]))
+                elif 6 < delay_hours <= 24:
+                    res["score"] = float(np.clip(res["score"] * 0.55, 0, TASK_CONFIG["taskMaxScore"]))
+                elif delay_hours > 24:
+                    res["score"] = float(np.clip(res["score"] * 0.25, 0, TASK_CONFIG["taskMaxScore"]))
+            else:
+                if 0 < delay_hours <= 6:
+                    res["score"] = float(np.clip(res["score"] * 0.70, 0, TASK_CONFIG["taskMaxScore"]))
+                elif 6 < delay_hours <= 24:
+                    res["score"] = float(np.clip(res["score"] * 0.40, 0, TASK_CONFIG["taskMaxScore"]))
+                elif delay_hours > 24:
+                    res["score"] = 0.0
 
 
 # ════════════════════════════════════════════════════════════════
@@ -779,7 +803,7 @@ def main():
 
     # ─── تطبيق عقوبات التأخير ───────────────────────────────────
     print("[Penalty] تطبيق عقوبات التاخير لـ G2/G4...")
-    apply_late_penalties(all_results)
+    apply_late_penalties(all_results, students)
 
     # ─── بناء DataFrame ─────────────────────────────────────────
     print("[DataFrame] بناء جدول البيانات...")
