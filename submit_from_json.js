@@ -16,13 +16,13 @@
 // ════════════════════════════════════════════════════════════════
 
 // ─── إعدادات الملف والفورمات ────────────────────────────────────
-const SIMULATION_FILE_ID = "";  // ← ضع هنا ID ملف الـ JSON من Google Drive
+const SIMULATION_FILE_ID = "1ccff7iMjZFCI3sWOkulnhbWLnVtCOfoB";  // ← ضع هنا ID ملف الـ JSON من Google Drive
 
 // فورم MCQ
-const MCQ_FORM_URL = "";        // ← رابط فورم الاختبار MCQ
+const MCQ_FORM_URL = "https://docs.google.com/forms/d/1YJHSGmT7_YwkL-0Yr0zEUB8fA4RcudQX5czbLQXLzEQ/edit";        // ← رابط فورم الاختبار MCQ
 
 // فورم Flow
-const FLOW_FORM_URL = "";       // ← رابط فورم مقياس التدفق
+const FLOW_FORM_URL = "https://docs.google.com/forms/d/15hcLGKlOsg0xbIZy_vDIoyYv866KEKEQSQF-HSafUZ4/edit";
 
 // ─── إعدادات الجدولة (للطريقة المجدوَلة) ───────────────────────
 const SCHEDULE_CONFIG = {
@@ -140,17 +140,35 @@ function loadSimulationData() {
  * @returns {number} وقت بالميلي ثانية
  */
 function getRandomDaytimeMs(baseMs, numDays) {
+    const nowDate = new Date(baseMs);
+    const dayOffset = Math.floor(Math.random() * numDays);
     const d = new Date(baseMs);
-    // يوم عشوائي [0, numDays-1]
-    d.setDate(d.getDate() + Math.floor(Math.random() * numDays));
-    // الحد الأقصى للـ MCQ = endHour - gap - 1 حتى يبقى Flow داخل النافذة
+    d.setDate(d.getDate() + dayOffset);
+
     const maxHour = SCHEDULE_CONFIG.endHour - SCHEDULE_CONFIG.mcqToFlowGapHours - 1;
-    const hourRange = maxHour - SCHEDULE_CONFIG.startHour;
-    const randomHour = SCHEDULE_CONFIG.startHour + Math.floor(Math.random() * (hourRange + 1));
-    const randomMin = Math.floor(Math.random() * 60);
+    let minHour = SCHEDULE_CONFIG.startHour;
+    let minMin = 0;
+
+    // إذا اليوم = اليوم الحالي، لا نجدول في الماضي
+    if (dayOffset === 0) {
+        minHour = nowDate.getHours();
+        minMin = nowDate.getMinutes() + 2;
+        if (minMin >= 60) { minHour++; minMin = 0; }
+        if (minHour > maxHour) {
+            d.setDate(d.getDate() + 1);
+            minHour = SCHEDULE_CONFIG.startHour;
+            minMin = 0;
+        }
+    }
+
+    const hourRange = maxHour - minHour;
+    const randomHour = hourRange <= 0 ? minHour : minHour + Math.floor(Math.random() * (hourRange + 1));
+    const randomMin = (dayOffset === 0 && randomHour === minHour) ? minMin : Math.floor(Math.random() * 60);
     const randomSec = Math.floor(Math.random() * 60);
     d.setHours(randomHour, randomMin, randomSec, 0);
-    return d.getTime();
+
+    const result = d.getTime();
+    return result < baseMs ? baseMs + 120000 : result;
 }
 
 /**
@@ -730,7 +748,7 @@ function processSmartQueue() {
         const MAX_RUNTIME_MS = 5 * 60 * 1000;
         const maxPerRun = SCHEDULE_CONFIG.maxPerRun || 3;
         const maxRetries = SCHEDULE_CONFIG.maxRetries || 3;
-        const sent = 0;
+        let sent = 0;
 
         // قراءة من الكاش بدلاً من Drive API (تجنب استنزاف الحصة)
         const students = JSON.parse(safeGetProperty(props, "STUDENTS_CACHE_" + phase) || "[]");
@@ -740,14 +758,14 @@ function processSmartQueue() {
         }
 
         // فتح الفورمات مرة واحدة
-        const mcqForm = null;
-        const flowForm = null;
+        let mcqForm = null;
+        let flowForm = null;
+        let flowActive = !!(FLOW_FORM_URL);
         if (MCQ_FORM_URL) {
             try { mcqForm = FormApp.openByUrl(MCQ_FORM_URL); } catch (e) {
                 Logger.log("❌ فشل فتح فورم MCQ: " + e.message); return;
             }
         }
-        const flowActive = !!(FLOW_FORM_URL);
         if (flowActive) {
             try { flowForm = FormApp.openByUrl(FLOW_FORM_URL); } catch (e) {
                 Logger.log("⚠️ فشل فتح فورم Flow — سيتم تخطيه: " + e.message);
