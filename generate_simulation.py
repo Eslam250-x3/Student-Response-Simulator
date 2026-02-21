@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "behavior": {
         "consistencyMin": 0.55, "consistencyMax": 0.95,
         "fatigueMax": 0.12, "fatigueStartQuestion": 20,
-        "guessingBase": 0.18,     # c parameter (3PL) — reduced for better KR-20
+        "guessingBase": 0.25,     # c parameter (3PL) — موحّد مع config.js
         "discrimination": 2.2,    # a parameter (3PL) — increased for better KR-20
         "consistencyFactor": 0.25,
         "probMin": 0.08, "probMax": 0.96,

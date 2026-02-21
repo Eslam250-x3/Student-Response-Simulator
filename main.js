@@ -23,58 +23,7 @@ function loadConfig() {
 }
 
 
-// ═══════════════════════════════════════════════════════════
-//  حماية حد PropertiesService (9KB per key, 500KB total)
-// ═══════════════════════════════════════════════════════════
-const CHUNK_SIZE = 8500; // أقل من حد 9KB بشوية
-
-/**
- * حفظ بيانات مع تقسيم تلقائي لو تجاوزت حد 9KB
- * يحفظ البيانات في KEY_CHUNK_0, KEY_CHUNK_1, ... ويحفظ عدد الأجزاء في KEY_CHUNKS
- * @param {GoogleAppsScript.Properties.Properties} props
- * @param {string} key
- * @param {string} value
- */
-function safeSetProperty(props, key, value) {
-  // تنظيف الأجزاء القديمة
-  const oldChunks = parseInt(props.getProperty(key + '_CHUNKS') || '0');
-  for (let i = 0; i < oldChunks; i++) {
-    props.deleteProperty(key + '_CHUNK_' + i);
-  }
-  props.deleteProperty(key + '_CHUNKS');
-
-  if (value.length <= CHUNK_SIZE) {
-    // يكفي property واحد
-    props.setProperty(key, value);
-  } else {
-    // تقسيم
-    const numChunks = Math.ceil(value.length / CHUNK_SIZE);
-    for (let i = 0; i < numChunks; i++) {
-      props.setProperty(key + '_CHUNK_' + i, value.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
-    }
-    props.setProperty(key + '_CHUNKS', '' + numChunks);
-    props.deleteProperty(key); // احذف النسخة القديمة غير المقسمة
-  }
-}
-
-/**
- * قراءة بيانات مع تجميع تلقائي للأجزاء
- * @param {GoogleAppsScript.Properties.Properties} props
- * @param {string} key
- * @returns {string|null}
- */
-function safeGetProperty(props, key) {
-  const numChunks = parseInt(props.getProperty(key + '_CHUNKS') || '0');
-  if (numChunks > 0) {
-    let result = '';
-    for (let i = 0; i < numChunks; i++) {
-      result += (props.getProperty(key + '_CHUNK_' + i) || '');
-    }
-    return result;
-  }
-  return props.getProperty(key);
-}
-
+// safeSetProperty / safeGetProperty → معرفتان في utils.js
 
 /**
  * استئناف المحاكاة من آخر نقطة توقف

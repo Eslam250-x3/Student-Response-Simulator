@@ -32,7 +32,7 @@
 تثبيت مكتبات البايثون:
 
 ```bash
-pip install numpy scipy pandas openpyxl
+pip install -r requirements.txt
 ```
 
 ---

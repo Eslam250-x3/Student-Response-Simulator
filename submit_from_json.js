@@ -16,16 +16,16 @@
 // ════════════════════════════════════════════════════════════════
 
 // ─── إعدادات الملف والفورمات ────────────────────────────────────
-var SIMULATION_FILE_ID = "";  // ← ضع هنا ID ملف الـ JSON من Google Drive
+const SIMULATION_FILE_ID = "";  // ← ضع هنا ID ملف الـ JSON من Google Drive
 
 // فورم MCQ
-var MCQ_FORM_URL = "";        // ← رابط فورم الاختبار MCQ
+const MCQ_FORM_URL = "";        // ← رابط فورم الاختبار MCQ
 
 // فورم Flow
-var FLOW_FORM_URL = "";       // ← رابط فورم مقياس التدفق
+const FLOW_FORM_URL = "";       // ← رابط فورم مقياس التدفق
 
 // ─── إعدادات الجدولة (للطريقة المجدوَلة) ───────────────────────
-var SCHEDULE_CONFIG = {
+const SCHEDULE_CONFIG = {
     numDays: 4,                  // عدد أيام التوزيع
     startHour: 9,                // ساعة بداية النافذة اليومية (24h)
     endHour: 22,                 // ساعة نهاية النافذة اليومية
@@ -37,63 +37,9 @@ var SCHEDULE_CONFIG = {
     maxPerRun: 3                 // أقصى عدد ردود في كل تشغيل للـ Trigger
 };
 
-// ─── الطلاب المتسربون (لا يُرسَل لهم في البعدي) ──────────────
-var DROPOUT_IDS = [
-    "STD-081", "STD-082", "STD-083", "STD-084",
-    "STD-085", "STD-086", "STD-087", "STD-088",
-    "STD-089", "STD-090", "STD-091", "STD-092",
-    "STD-093", "STD-094", "STD-095", "STD-096"
-];
+// DROPOUT_IDS → معرف في constants.js (مولّد من constants.json)
 
-// --- Safe Property Storage (handles 9 KB GAS per-value limit) ---
-// The Smart Queue for 96 students (192 entries) can exceed the 9 KB
-// ScriptProperties limit, so large values are auto-split into chunks.
-
-/**
- * Saves a large string to Script Properties safely.
- * Values larger than 8000 chars are split into KEY_CHUNK_0 / _1 / ...
- * @param {GoogleAppsScript.Properties.Properties} props
- * @param {string} key
- * @param {string} value
- */
-function safeSetProperty(props, key, value) {
-    var CHUNK_SIZE = 8000;
-    var oldChunks = parseInt(props.getProperty(key + "_CHUNKS") || "0");
-    for (var k = 0; k < oldChunks; k++) {
-        props.deleteProperty(key + "_CHUNK_" + k);
-    }
-    props.deleteProperty(key + "_CHUNKS");
-    props.deleteProperty(key);
-    if (value.length <= CHUNK_SIZE) {
-        props.setProperty(key, value);
-    } else {
-        var chunks = [];
-        for (var i = 0; i < value.length; i += CHUNK_SIZE) {
-            chunks.push(value.substring(i, i + CHUNK_SIZE));
-        }
-        for (var j = 0; j < chunks.length; j++) {
-            props.setProperty(key + "_CHUNK_" + j, chunks[j]);
-        }
-        props.setProperty(key + "_CHUNKS", String(chunks.length));
-    }
-}
-
-/**
- * Reads a string that was saved with safeSetProperty.
- * @param {GoogleAppsScript.Properties.Properties} props
- * @param {string} key
- * @returns {string|null}
- */
-function safeGetProperty(props, key) {
-    var chunksStr = props.getProperty(key + "_CHUNKS");
-    if (!chunksStr) return props.getProperty(key);
-    var n = parseInt(chunksStr);
-    var result = "";
-    for (var i = 0; i < n; i++) {
-        result += (props.getProperty(key + "_CHUNK_" + i) || "");
-    }
-    return result;
-}
+// safeSetProperty / safeGetProperty → معرفتان في utils.js
 
 // ─── الأدوات المساعدة ──────────────────────────────────────────
 
@@ -101,13 +47,13 @@ function safeGetProperty(props, key) {
  * تحميل بيانات المحاكاة من Google Drive JSON
  */
 function loadSimulationData() {
-    var fileId = SIMULATION_FILE_ID || PropertiesService.getScriptProperties().getProperty("SIMULATION_FILE_ID");
+    const fileId = SIMULATION_FILE_ID || PropertiesService.getScriptProperties().getProperty("SIMULATION_FILE_ID");
     if (!fileId) {
         throw new Error("❌ ضع SIMULATION_FILE_ID في الكود أو في Script Properties");
     }
 
-    var file = DriveApp.getFileById(fileId);
-    var content = file.getBlob().getDataAsString("UTF-8");
+    const file = DriveApp.getFileById(fileId);
+    const content = file.getBlob().getDataAsString("UTF-8");
     return JSON.parse(content);
 }
 
@@ -119,15 +65,15 @@ function loadSimulationData() {
  * @returns {number} وقت بالميلي ثانية
  */
 function getRandomDaytimeMs(baseMs, numDays) {
-    var d = new Date(baseMs);
+    const d = new Date(baseMs);
     // يوم عشوائي [0, numDays-1]
     d.setDate(d.getDate() + Math.floor(Math.random() * numDays));
     // الحد الأقصى للـ MCQ = endHour - gap - 1 حتى يبقى Flow داخل النافذة
-    var maxHour = SCHEDULE_CONFIG.endHour - SCHEDULE_CONFIG.mcqToFlowGapHours - 1;
-    var hourRange = maxHour - SCHEDULE_CONFIG.startHour;
-    var randomHour = SCHEDULE_CONFIG.startHour + Math.floor(Math.random() * (hourRange + 1));
-    var randomMin = Math.floor(Math.random() * 60);
-    var randomSec = Math.floor(Math.random() * 60);
+    const maxHour = SCHEDULE_CONFIG.endHour - SCHEDULE_CONFIG.mcqToFlowGapHours - 1;
+    const hourRange = maxHour - SCHEDULE_CONFIG.startHour;
+    const randomHour = SCHEDULE_CONFIG.startHour + Math.floor(Math.random() * (hourRange + 1));
+    const randomMin = Math.floor(Math.random() * 60);
+    const randomSec = Math.floor(Math.random() * 60);
     d.setHours(randomHour, randomMin, randomSec, 0);
     return d.getTime();
 }
@@ -136,20 +82,20 @@ function getRandomDaytimeMs(baseMs, numDays) {
  * إرسال استجابة MCQ لطالبة واحدة
  */
 function submitMCQResponse(form, student, phase) {
-    var responsesKey = "mcq_" + phase + "_responses";
-    var answers = student[responsesKey];
+    const responsesKey = "mcq_" + phase + "_responses";
+    const answers = student[responsesKey];
     if (!answers || answers.length === 0) {
         Logger.log("⚠️ لا توجد استجابات MCQ " + phase + " لـ " + student.id);
         return false;
     }
 
-    var items = form.getItems();
-    var formResponse = form.createResponse();
+    const items = form.getItems();
+    const formResponse = form.createResponse();
 
     // أول عنصر = الإيميل (إذا كان موجود)
-    var startIdx = 0;
-    for (var i = 0; i < items.length; i++) {
-        var item = items[i];
+    let startIdx = 0;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
 
         if (item.getType() === FormApp.ItemType.TEXT) {
             // حقل الإيميل
@@ -160,13 +106,13 @@ function submitMCQResponse(form, student, phase) {
         if (item.getType() === FormApp.ItemType.MULTIPLE_CHOICE ||
             item.getType() === FormApp.ItemType.LIST) {
             if (startIdx < answers.length) {
-                var choiceIdx = answers[startIdx];
-                var choices = item.asMultipleChoiceItem ?
+                const choiceIdx = answers[startIdx];
+                const choices = item.asMultipleChoiceItem ?
                     item.asMultipleChoiceItem().getChoices() :
                     item.asListItem().getChoices();
 
                 if (choiceIdx >= 0 && choiceIdx < choices.length) {
-                    var choiceValue = choices[choiceIdx].getValue();
+                    const choiceValue = choices[choiceIdx].getValue();
                     if (item.getType() === FormApp.ItemType.MULTIPLE_CHOICE) {
                         formResponse.withItemResponse(item.asMultipleChoiceItem().createResponse(choiceValue));
                     } else {
@@ -186,19 +132,19 @@ function submitMCQResponse(form, student, phase) {
  * إرسال استجابة Flow لطالبة واحدة
  */
 function submitFlowResponse(form, student, phase) {
-    var responsesKey = "flow_" + phase + "_responses";
-    var answers = student[responsesKey];
+    const responsesKey = "flow_" + phase + "_responses";
+    const answers = student[responsesKey];
     if (!answers || answers.length === 0) {
         Logger.log("⚠️ لا توجد استجابات Flow " + phase + " لـ " + student.id);
         return false;
     }
 
-    var items = form.getItems();
-    var formResponse = form.createResponse();
-    var answerIdx = 0;
+    const items = form.getItems();
+    const formResponse = form.createResponse();
+    let answerIdx = 0;
 
-    for (var i = 0; i < items.length; i++) {
-        var item = items[i];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
 
         if (item.getType() === FormApp.ItemType.TEXT) {
             formResponse.withItemResponse(item.asTextItem().createResponse(student.email));
@@ -209,7 +155,7 @@ function submitFlowResponse(form, student, phase) {
             item.getType() === FormApp.ItemType.LIST ||
             item.getType() === FormApp.ItemType.SCALE) {
             if (answerIdx < answers.length) {
-                var answer = answers[answerIdx];
+                const answer = answers[answerIdx];
 
                 if (item.getType() === FormApp.ItemType.SCALE) {
                     formResponse.withItemResponse(item.asScaleItem().createResponse(answer));
@@ -235,8 +181,8 @@ function submitFlowResponse(form, student, phase) {
  * يمكن تشغيلها من القائمة المخصصة
  */
 function submitAllFromJSON() {
-    var data = loadSimulationData();
-    var students = data.students;
+    const data = loadSimulationData();
+    const students = data.students;
 
     Logger.log("═══════════════════════════════════════════");
     Logger.log("📤 بدء إرسال " + students.length + " طالبة");
@@ -244,7 +190,7 @@ function submitAllFromJSON() {
     Logger.log("═══════════════════════════════════════════");
 
     // تخزين الحالة للاستكمال
-    var state = {
+    let state = {
         totalStudents: students.length,
         currentPhase: "mcq_pre",
         currentIndex: 0,
@@ -252,34 +198,34 @@ function submitAllFromJSON() {
     };
 
     // استرجاع الحالة السابقة إن وجدت
-    var savedState = PropertiesService.getScriptProperties().getProperty("SUBMIT_STATE");
+    const savedState = PropertiesService.getScriptProperties().getProperty("SUBMIT_STATE");
     if (savedState) {
         state = JSON.parse(savedState);
         Logger.log("♻️ استكمال من الحالة السابقة: " + state.currentPhase + " #" + state.currentIndex);
     }
 
-    var phases = ["mcq_pre", "mcq_post", "flow_pre", "flow_post"];
-    var phaseIdx = phases.indexOf(state.currentPhase);
+    const phases = ["mcq_pre", "mcq_post", "flow_pre", "flow_post"];
+    const phaseIdx = phases.indexOf(state.currentPhase);
 
-    for (var pi = phaseIdx; pi < phases.length; pi++) {
-        var phase = phases[pi];
-        var isMCQ = phase.startsWith("mcq");
-        var testPhase = phase.endsWith("pre") ? "pre" : "post";
+    for (let pi = phaseIdx; pi < phases.length; pi++) {
+        const phase = phases[pi];
+        const isMCQ = phase.startsWith("mcq");
+        const testPhase = phase.endsWith("pre") ? "pre" : "post";
 
-        var formUrl = isMCQ ? MCQ_FORM_URL : FLOW_FORM_URL;
+        const formUrl = isMCQ ? MCQ_FORM_URL : FLOW_FORM_URL;
         if (!formUrl) {
             Logger.log("⚠️ رابط الفورم غير محدد لـ " + phase);
             continue;
         }
 
-        var form = FormApp.openByUrl(formUrl);
+        const form = FormApp.openByUrl(formUrl);
         Logger.log("\n📋 " + phase + " — " + (isMCQ ? "MCQ" : "Flow") + " " + testPhase);
 
-        var startIdx = (pi === phaseIdx) ? state.currentIndex : 0;
+        const startIdx = (pi === phaseIdx) ? state.currentIndex : 0;
 
-        for (var i = startIdx; i < students.length; i++) {
+        for (let i = startIdx; i < students.length; i++) {
             try {
-                var success;
+                let success;
                 if (isMCQ) {
                     success = submitMCQResponse(form, students[i], testPhase);
                 } else {
@@ -329,13 +275,13 @@ function submitAllFromJSON() {
  * إرسال MCQ فقط (قبلي + بعدي)
  */
 function submitMCQOnly() {
-    var data = loadSimulationData();
-    var form = FormApp.openByUrl(MCQ_FORM_URL);
+    const data = loadSimulationData();
+    const form = FormApp.openByUrl(MCQ_FORM_URL);
 
     Logger.log("📋 إرسال MCQ لـ " + data.students.length + " طالبة...");
 
-    for (var i = 0; i < data.students.length; i++) {
-        var s = data.students[i];
+    for (let i = 0; i < data.students.length; i++) {
+        const s = data.students[i];
         submitMCQResponse(form, s, "pre");
         Logger.log("  ✅ " + s.id + " قبلي (" + (i + 1) + "/" + data.students.length + ")");
         Utilities.sleep(1500 + Math.random() * 3000);
@@ -352,13 +298,13 @@ function submitMCQOnly() {
  * إرسال Flow فقط (قبلي + بعدي)
  */
 function submitFlowOnly() {
-    var data = loadSimulationData();
-    var form = FormApp.openByUrl(FLOW_FORM_URL);
+    const data = loadSimulationData();
+    const form = FormApp.openByUrl(FLOW_FORM_URL);
 
     Logger.log("🌊 إرسال Flow لـ " + data.students.length + " طالبة...");
 
-    for (var i = 0; i < data.students.length; i++) {
-        var s = data.students[i];
+    for (let i = 0; i < data.students.length; i++) {
+        const s = data.students[i];
         submitFlowResponse(form, s, "pre");
         Logger.log("  ✅ " + s.id + " قبلي (" + (i + 1) + "/" + data.students.length + ")");
         Utilities.sleep(1500 + Math.random() * 3000);
@@ -383,8 +329,8 @@ function resetSubmitState() {
  * عرض ملخص البيانات المُحمّلة (بدون إرسال)
  */
 function previewData() {
-    var data = loadSimulationData();
-    var stats = data.metadata.stats;
+    const data = loadSimulationData();
+    const stats = data.metadata.stats;
 
     Logger.log("═══════════════════════════════════════════");
     Logger.log("📊 ملخص البيانات المُولّدة");
@@ -412,8 +358,8 @@ function previewData() {
 
     // عرض أول 3 طالبات كعينة
     Logger.log("\n📋 عينة (أول 3 طالبات):");
-    for (var i = 0; i < Math.min(3, data.students.length); i++) {
-        var s = data.students[i];
+    for (let i = 0; i < Math.min(3, data.students.length); i++) {
+        const s = data.students[i];
         Logger.log("  " + s.id + " | " + s.name + " | " + s.group +
             " | MCQ: " + s.mcq_pre_score + "→" + s.mcq_post_score +
             " | Flow: " + s.flow_pre_score + "→" + s.flow_post_score);
@@ -444,8 +390,8 @@ function setupJSONTrigger(intervalMinutes) {
  * يحذف كل الـ Triggers المرتبطة بـ processSmartQueue
  */
 function cleanupJSONTriggers() {
-    var triggers = ScriptApp.getProjectTriggers();
-    for (var i = 0; i < triggers.length; i++) {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
         if (triggers[i].getHandlerFunction() === "processSmartQueue") {
             ScriptApp.deleteTrigger(triggers[i]);
         }
@@ -463,24 +409,24 @@ function cleanupJSONTriggers() {
  * @returns {Object[]} الطابور مرتباً زمنياً
  */
 function buildSmartQueue(students, testPhase, excludeDropouts) {
-    var queue = [];
-    var now = new Date().getTime();
-    var gapMs = SCHEDULE_CONFIG.mcqToFlowGapHours * 60 * 60 * 1000;
-    var variationMs = SCHEDULE_CONFIG.mcqToFlowVariationMin * 60 * 1000;
-    var tz = SCHEDULE_CONFIG.timezone;
+    const queue = [];
+    const now = new Date().getTime();
+    const gapMs = SCHEDULE_CONFIG.mcqToFlowGapHours * 60 * 60 * 1000;
+    const variationMs = SCHEDULE_CONFIG.mcqToFlowVariationMin * 60 * 1000;
+    const tz = SCHEDULE_CONFIG.timezone;
 
-    for (var i = 0; i < students.length; i++) {
-        var s = students[i];
+    for (let i = 0; i < students.length; i++) {
+        const s = students[i];
 
         // استثناء المتسربين في البعدي
         if (excludeDropouts && DROPOUT_IDS.indexOf(s.id) !== -1) continue;
 
         // وقت MCQ: عشوائي نهاري خلال numDays أيام
-        var mcqTime = getRandomDaytimeMs(now, SCHEDULE_CONFIG.numDays);
+        const mcqTime = getRandomDaytimeMs(now, SCHEDULE_CONFIG.numDays);
 
         // وقت Flow: MCQ + gap ± variation عشوائي
-        var variation = (Math.random() - 0.5) * 2 * variationMs;
-        var flowTime = mcqTime + gapMs + variation;
+        const variation = (Math.random() - 0.5) * 2 * variationMs;
+        const flowTime = mcqTime + gapMs + variation;
 
         queue.push({
             id: s.id,
@@ -512,8 +458,8 @@ function buildSmartQueue(students, testPhase, excludeDropouts) {
  * بعد الاكتمال شغّل runPostTestJSON() لبدء البعدي.
  */
 function runPreTestJSON() {
-    var props = PropertiesService.getScriptProperties();
-    var state = props.getProperty("JSON_STATE") || "IDLE";
+    const props = PropertiesService.getScriptProperties();
+    const state = props.getProperty("JSON_STATE") || "IDLE";
 
     if (state === "PRE_RUNNING" || state === "POST_RUNNING") {
         Logger.log("❌ فيه محاكاة مجدوَلة شغّالة! استخدم checkJSONStatus() أو resetJSONState()");
@@ -528,30 +474,30 @@ function runPreTestJSON() {
         return;
     }
 
-    var fileId = SIMULATION_FILE_ID || props.getProperty("SIMULATION_FILE_ID");
+    const fileId = SIMULATION_FILE_ID || props.getProperty("SIMULATION_FILE_ID");
     if (!fileId) { Logger.log("❌ ضع SIMULATION_FILE_ID في أعلى الملف"); return; }
     if (!MCQ_FORM_URL) { Logger.log("❌ ضع MCQ_FORM_URL في أعلى الملف"); return; }
     if (!FLOW_FORM_URL) { Logger.log("⚠️ FLOW_FORM_URL فارغ — سيتم تخطي مقياس التدفق"); }
 
-    var lockKey = "JSON_LAST_START_PRE";
-    var lastStart = parseInt(props.getProperty(lockKey) || "0");
+    const lockKey = "JSON_LAST_START_PRE";
+    const lastStart = parseInt(props.getProperty(lockKey) || "0");
     if (Date.now() - lastStart < 60000) {
         Logger.log("❌ انتظر دقيقة على الأقل قبل إعادة التشغيل");
         return;
     }
 
     Logger.log("📂 جارٍ تحميل simulation_data.json...");
-    var data;
+    let data;
     try { data = loadSimulationData(); } catch (e) {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
     }
 
-    var lightStudents = data.students.map(function (s) {
+    const lightStudents = data.students.map(function (s) {
         return { id: s.id, email: s.email, mcq_pre_responses: s.mcq_pre_responses, flow_pre_responses: s.flow_pre_responses };
     });
     safeSetProperty(props, "STUDENTS_CACHE_PRE", JSON.stringify(lightStudents));
 
-    var queue = buildSmartQueue(data.students, "pre", false);
+    const queue = buildSmartQueue(data.students, "pre", false);
 
     Logger.log("═══════════════════════════════════════════");
     Logger.log("🚀 بدء التطبيق القبلي (Pre-Test) — Smart Queue");
@@ -582,8 +528,8 @@ function runPreTestJSON() {
  * يُرسل MCQ بعدي + Flow بعدي — مع استثناء الـ DROPOUT_IDS تلقائياً.
  */
 function runPostTestJSON() {
-    var props = PropertiesService.getScriptProperties();
-    var state = props.getProperty("JSON_STATE") || "IDLE";
+    const props = PropertiesService.getScriptProperties();
+    const state = props.getProperty("JSON_STATE") || "IDLE";
 
     if (state === "PRE_RUNNING" || state === "POST_RUNNING") {
         Logger.log("❌ فيه محاكاة مجدوَلة شغّالة! استخدم checkJSONStatus()");
@@ -596,30 +542,30 @@ function runPostTestJSON() {
         return;
     }
 
-    var fileId = SIMULATION_FILE_ID || props.getProperty("JSON_FILE_ID") || props.getProperty("SIMULATION_FILE_ID");
+    const fileId = SIMULATION_FILE_ID || props.getProperty("JSON_FILE_ID") || props.getProperty("SIMULATION_FILE_ID");
     if (!fileId) { Logger.log("❌ ضع SIMULATION_FILE_ID في أعلى الملف"); return; }
 
-    var lockKey = "JSON_LAST_START_POST";
-    var lastStart = parseInt(props.getProperty(lockKey) || "0");
+    const lockKey = "JSON_LAST_START_POST";
+    const lastStart = parseInt(props.getProperty(lockKey) || "0");
     if (Date.now() - lastStart < 60000) {
         Logger.log("❌ انتظر دقيقة على الأقل قبل إعادة التشغيل");
         return;
     }
 
     Logger.log("📂 جارٍ تحميل simulation_data.json...");
-    var data;
+    let data;
     try { data = loadSimulationData(); } catch (e) {
         Logger.log("❌ فشل تحميل الملف: " + e.message); return;
     }
 
-    var lightStudents = data.students.map(function (s) {
+    const lightStudents = data.students.map(function (s) {
         return { id: s.id, email: s.email, mcq_post_responses: s.mcq_post_responses, flow_post_responses: s.flow_post_responses };
     });
     safeSetProperty(props, "STUDENTS_CACHE_POST", JSON.stringify(lightStudents));
 
     // بناء الطابور مع استثناء المتسربين
-    var queue = buildSmartQueue(data.students, "post", true);
-    var activeStudents = data.students.length - DROPOUT_IDS.length;
+    const queue = buildSmartQueue(data.students, "post", true);
+    const activeStudents = data.students.length - DROPOUT_IDS.length;
 
     Logger.log("═══════════════════════════════════════════");
     Logger.log("🚀 بدء التطبيق البعدي (Post-Test) — Smart Queue");
@@ -648,17 +594,17 @@ function runPostTestJSON() {
  * حماية retryCount: بعد maxRetries فشل يتجاوز الطالب بدون توقف النظام.
  */
 function processSmartQueue() {
-    var props = PropertiesService.getScriptProperties();
-    var state = props.getProperty("JSON_STATE");
+    const props = PropertiesService.getScriptProperties();
+    const state = props.getProperty("JSON_STATE");
     if (state !== "PRE_RUNNING" && state !== "POST_RUNNING") return;
 
-    var lock = LockService.getScriptLock();
+    const lock = LockService.getScriptLock();
     if (!lock.tryLock(10000)) return;
 
     try {
-        var phase = props.getProperty("JSON_PHASE"); // "PRE" أو "POST"
+        const phase = props.getProperty("JSON_PHASE"); // "PRE" أو "POST"
 
-        var queue;
+        let queue;
         try {
             queue = JSON.parse(safeGetProperty(props, "SMART_QUEUE") || "[]");
         } catch (e) {
@@ -666,29 +612,29 @@ function processSmartQueue() {
             return;
         }
 
-        var now = Date.now();
-        var startTime = Date.now();
-        var MAX_RUNTIME_MS = 5 * 60 * 1000;
-        var maxPerRun = SCHEDULE_CONFIG.maxPerRun || 3;
-        var maxRetries = SCHEDULE_CONFIG.maxRetries || 3;
-        var sent = 0;
+        const now = Date.now();
+        const startTime = Date.now();
+        const MAX_RUNTIME_MS = 5 * 60 * 1000;
+        const maxPerRun = SCHEDULE_CONFIG.maxPerRun || 3;
+        const maxRetries = SCHEDULE_CONFIG.maxRetries || 3;
+        const sent = 0;
 
         // قراءة من الكاش بدلاً من Drive API (تجنب استنزاف الحصة)
-        var students = JSON.parse(safeGetProperty(props, "STUDENTS_CACHE_" + phase) || "[]");
-        var studentMap = {};
-        for (var j = 0; j < students.length; j++) {
+        const students = JSON.parse(safeGetProperty(props, "STUDENTS_CACHE_" + phase) || "[]");
+        const studentMap = {};
+        for (let j = 0; j < students.length; j++) {
             studentMap[students[j].id] = students[j];
         }
 
         // فتح الفورمات مرة واحدة
-        var mcqForm = null;
-        var flowForm = null;
+        const mcqForm = null;
+        const flowForm = null;
         if (MCQ_FORM_URL) {
             try { mcqForm = FormApp.openByUrl(MCQ_FORM_URL); } catch (e) {
                 Logger.log("❌ فشل فتح فورم MCQ: " + e.message); return;
             }
         }
-        var flowActive = !!(FLOW_FORM_URL);
+        const flowActive = !!(FLOW_FORM_URL);
         if (flowActive) {
             try { flowForm = FormApp.openByUrl(FLOW_FORM_URL); } catch (e) {
                 Logger.log("⚠️ فشل فتح فورم Flow — سيتم تخطيه: " + e.message);
@@ -696,8 +642,8 @@ function processSmartQueue() {
             }
         }
 
-        for (var i = 0; i < queue.length; i++) {
-            var item = queue[i];
+        for (let i = 0; i < queue.length; i++) {
+            const item = queue[i];
             if (item.done || item.time > now) continue;
             if (sent >= maxPerRun) break;
             if (Date.now() - startTime > MAX_RUNTIME_MS) {
@@ -705,17 +651,17 @@ function processSmartQueue() {
                 break;
             }
 
-            var student = studentMap[item.id];
+            const student = studentMap[item.id];
             if (!student) {
                 item.done = true; // طالب غير موجود في JSON
                 continue;
             }
 
-            var isMCQ = item.phase.indexOf("mcq") !== -1;
-            var testPhase = item.phase.indexOf("pre") !== -1 ? "pre" : "post";
+            const isMCQ = item.phase.indexOf("mcq") !== -1;
+            const testPhase = item.phase.indexOf("pre") !== -1 ? "pre" : "post";
 
             try {
-                var ok = false;
+                let ok = false;
                 if (isMCQ && mcqForm) {
                     ok = submitMCQResponse(mcqForm, student, testPhase);
                 } else if (!isMCQ && flowActive && flowForm) {
@@ -749,8 +695,8 @@ function processSmartQueue() {
         safeSetProperty(props, "SMART_QUEUE", JSON.stringify(queue));
 
         // فحص الاكتمال
-        var remaining = queue.filter(function (q) { return !q.done; }).length;
-        var doneCnt = queue.filter(function (q) { return q.done; }).length;
+        const remaining = queue.filter(function (q) { return !q.done; }).length;
+        const doneCnt = queue.filter(function (q) { return q.done; }).length;
 
         if (remaining === 0) {
             cleanupJSONTriggers();
@@ -764,7 +710,7 @@ function processSmartQueue() {
                 Logger.log("\n✅✅✅ التطبيق البعدي اكتمل! المحاكاة اكتملت بالكامل ✅✅✅");
                 Logger.log("   إجمالي الردود المُرسَلة: " + doneCnt);
                 try {
-                    var email = Session.getActiveUser().getEmail();
+                    const email = Session.getActiveUser().getEmail();
                     if (email) {
                         MailApp.sendEmail(email,
                             "✅ محاكاة JSON اكتملت",
@@ -790,15 +736,15 @@ function processSmartQueue() {
  * يعرض حالة المحاكاة المجدوَلة والتقدم الحالي
  */
 function checkJSONStatus() {
-    var props = PropertiesService.getScriptProperties();
-    var state = props.getProperty("JSON_STATE") || "IDLE";
-    var phase = props.getProperty("JSON_PHASE") || "-";
+    const props = PropertiesService.getScriptProperties();
+    const state = props.getProperty("JSON_STATE") || "IDLE";
+    const phase = props.getProperty("JSON_PHASE") || "-";
 
     Logger.log("═══════════════════════════════════════════");
     Logger.log("📊 حالة المحاكاة المجدوَلة (Smart Queue)");
     Logger.log("═══════════════════════════════════════════");
 
-    var stateLabel = {
+    const stateLabel = {
         "IDLE": "لم تبدأ بعد",
         "PRE_RUNNING": "القبلي يعمل...",
         "PRE_DONE": "القبلي اكتمل ✅ — جاهز للبعدي",
@@ -809,27 +755,27 @@ function checkJSONStatus() {
     Logger.log("🔄 الحالة: " + stateLabel);
     Logger.log("📋 المرحلة: " + phase);
 
-    var queueRaw = safeGetProperty(props, "SMART_QUEUE");
+    const queueRaw = safeGetProperty(props, "SMART_QUEUE");
     if (!queueRaw) {
         Logger.log("📭 لا يوجد طابور محفوظ");
         Logger.log("═══════════════════════════════════════════");
         return;
     }
 
-    var queue = JSON.parse(queueRaw);
-    var total = queue.length;
-    var doneCnt = queue.filter(function (q) { return q.done; }).length;
-    var remaining = total - doneCnt;
+    const queue = JSON.parse(queueRaw);
+    const total = queue.length;
+    const doneCnt = queue.filter(function (q) { return q.done; }).length;
+    const remaining = total - doneCnt;
 
     // إحصاء MCQ/Flow منفصلَين
-    var mcqDone = queue.filter(function (q) { return q.done && q.phase.indexOf("mcq") !== -1; }).length;
-    var flowDone = queue.filter(function (q) { return q.done && q.phase.indexOf("flow") !== -1; }).length;
+    const mcqDone = queue.filter(function (q) { return q.done && q.phase.indexOf("mcq") !== -1; }).length;
+    const flowDone = queue.filter(function (q) { return q.done && q.phase.indexOf("flow") !== -1; }).length;
 
     Logger.log("📋 إجمالي المهام: " + total + " | تم: " + doneCnt + " | متبقي: " + remaining);
     Logger.log("   MCQ مُرسَل: " + mcqDone + " | Flow مُرسَل: " + flowDone);
 
     if (remaining > 0) {
-        var nextItems = queue.filter(function (q) { return !q.done; });
+        const nextItems = queue.filter(function (q) { return !q.done; });
         Logger.log("⏰ أقرب موعد متبقٍّ: " + nextItems[0].timeStr + " [" + nextItems[0].phase + "]");
         Logger.log("⏰ آخر موعد: " + nextItems[nextItems.length - 1].timeStr);
     }
@@ -841,7 +787,7 @@ function checkJSONStatus() {
  * يحذف كل بيانات المحاكاة المجدوَلة ويوقف الـ Trigger
  */
 function resetJSONState() {
-    var props = PropertiesService.getScriptProperties();
+    const props = PropertiesService.getScriptProperties();
     cleanupJSONTriggers();
 
     props.deleteProperty("JSON_STATE");
@@ -849,8 +795,8 @@ function resetJSONState() {
     props.deleteProperty("JSON_FILE_ID");
 
     // حذف SMART_QUEUE مع دعم chunked storage
-    var chunks = parseInt(props.getProperty("SMART_QUEUE_CHUNKS") || "0");
-    for (var i = 0; i < chunks; i++) {
+    const chunks = parseInt(props.getProperty("SMART_QUEUE_CHUNKS") || "0");
+    for (let i = 0; i < chunks; i++) {
         props.deleteProperty("SMART_QUEUE_CHUNK_" + i);
     }
     props.deleteProperty("SMART_QUEUE_CHUNKS");
@@ -864,7 +810,7 @@ function resetJSONState() {
  * القائمة المخصصة
  */
 function onOpen() {
-    var ui = SpreadsheetApp.getUi();
+    const ui = SpreadsheetApp.getUi();
     ui.createMenu("📤 إرسال المحاكاة")
         .addItem("👀 معاينة البيانات", "previewData")
         .addSeparator()

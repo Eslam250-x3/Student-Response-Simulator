@@ -43,18 +43,6 @@ TASK_CONFIG = {
     # أسماء المهام
     "tasks": ["M1", "M2", "M3", "M4", "M5"],
 
-    # مواعيد التسليم النهائية (بعد 2 أسبوع من بداية الكورس)
-    "deadlines": [
-        "2026-01-24",   # M1 — الأسبوع 2
-        "2026-02-07",   # M2 — الأسبوع 4
-        "2026-02-21",   # M3 — الأسبوع 6
-        "2026-03-07",   # M4 — الأسبوع 8
-        "2026-03-21",   # M5 — الأسبوع 10
-    ],
-
-    # نافذة التسليم: يسلّم الطالب في الـ X يوم قبل الموعد
-    "submitWindowDays": 5,
-
     # المجموعات التي تخضع لعقوبة التأخير (محدّدة الوقت)
     "lateGroups": ["G2", "G4"],
     # عقوبة التأخير حسب الإطار النظري:
@@ -81,14 +69,19 @@ TASK_CONFIG = {
     "taskMaxScore": 100,
 }
 
-# الطلاب المتسربون — يكملون M1 و M2 فقط
-# توزيع غير متماثل: G2/G4 (ضغط زمني) = 5 متسربين، G1/G3 (مرنين) = 3 متسربين
-DROPOUT_IDS = [
-    "STD-081", "STD-082", "STD-083",               # G1: 3
-    "STD-084", "STD-085", "STD-086", "STD-087", "STD-088",  # G2: 5
-    "STD-089", "STD-090", "STD-091",               # G3: 3
-    "STD-092", "STD-093", "STD-094", "STD-095", "STD-096",  # G4: 5
-]
+# تاريخ بداية التجربة (21 يوماً)
+START_DATE = datetime.strptime("2026-02-22", "%Y-%m-%d")
+
+# أيام التسليم الصارمة للمجموعات المحددة (G2, G4) من بداية التجربة
+TIMED_DEADLINES_DAYS = [3, 8, 14, 17, 21]
+
+# الطلاب المتسربون — مصدر واحد من constants.json
+def _load_dropout_ids():
+    constants_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "constants.json")
+    with open(constants_path, "r", encoding="utf-8") as f:
+        return json.load(f)["dropoutIds"]
+
+DROPOUT_IDS = _load_dropout_ids()
 
 # تسميات الحروف
 GRADE_THRESHOLDS = [
@@ -285,7 +278,6 @@ def generate_all_results(students, team_map, rng):
     all_results = [None] * len(students)
     team_cache = {}
     team_member_idx = {}  # تتبع ترتيب العضو في الفريق لإزاحة التوقيت
-    deadlines = [datetime.strptime(d, "%Y-%m-%d") for d in TASK_CONFIG["deadlines"]]
 
     for i, student in enumerate(students):
         grp  = student["group"]
@@ -317,7 +309,7 @@ def generate_all_results(students, team_map, rng):
                                 "preFlowLevel": avg_pre_flow}
                 team_res = generate_student_tasks(team_student, rng)
                 _assign_timestamps_for_student(
-                    team_res, grp, avg_pre_flow, avg_post_flow, deadlines, rng)
+                    team_res, grp, avg_pre_flow, avg_post_flow, rng)
                 team_cache[team_key] = team_res
 
             base = team_cache[team_key]
@@ -342,31 +334,33 @@ def generate_all_results(students, team_map, rng):
         else:
             res = generate_student_tasks(student, rng)
             _assign_timestamps_for_student(
-                res, grp, pre_flow, post_flow, deadlines, rng)
+                res, grp, pre_flow, post_flow, rng)
             all_results[i] = res
 
     return all_results
 
 
-def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadlines, rng):
+def _assign_timestamps_for_student(results, group, pre_flow, post_flow, rng):
     """
-    يُعيّن توقيتات تسليم بمنحنى تدفق متدرج:
-    M1 = تدفق قبلي, M5 = تدفق بعدي, وما بينهما مزيج.
+    يعين توقيتات التسليم بمنطق يفرق جذرياً بين الزمن المحدد والمفتوح خلال 21 يوماً.
+    G2/G4: مواعيد صارمة (اليوم 3، 8، 14، 17، 21). G1/G3: حرية كاملة حتى اليوم 21.
     """
-    window  = TASK_CONFIG["submitWindowDays"]
     n_tasks = len(TASK_CONFIG["tasks"])
 
     for task_idx, res in enumerate(results):
         if res["score"] is None:
             continue
 
-        deadline = deadlines[task_idx]
-
-        # منحنى التدفق المتدرج: قبلي → بعدي (منحنى تعلم واقعي)
+        # التدفق اللحظي للطالب وقت هذه المهمة
         task_progress = LEARNING_RATIOS[task_idx]
         flow_i = pre_flow + task_progress * (post_flow - pre_flow)
 
         if group in TASK_CONFIG["lateGroups"]:
+            # المجموعات المحددة (G2, G4): الالتزام بالجدول الصارم
+            deadline_day = TIMED_DEADLINES_DAYS[task_idx]
+            deadline = START_DATE + timedelta(days=deadline_day)
+            deadline = deadline.replace(hour=23, minute=59, second=0)
+
             if res["is_late"] and res.get("hours_late", 0) > 0:
                 submit_time = deadline + timedelta(hours=res["hours_late"])
                 # فخ عطلة نهاية الأسبوع: طالب تدفق منخفض + جمعة فجرًا → غير واقعي
@@ -382,45 +376,49 @@ def _assign_timestamps_for_student(results, group, pre_flow, post_flow, deadline
                             second=0
                         )
                 elif 0 <= submit_time.hour <= 8:
-                    # تصحيح وقت الفجر: ضمان الهبوط في نافذة 18:00-22:00
-                    shift_hours = submit_time.hour + random.randint(2, 6)
-                    submit_time -= timedelta(hours=shift_hours)
+                    # تصحيح أوقات الفجر
+                    submit_time -= timedelta(hours=int(rng.integers(7, 13)))
             else:
-                early_hours = (flow_i * 48) + rng.normal(0, 10)
-                early_hours = max(1, min(window * 24, early_hours))
+                early_hours = (flow_i * 24) + rng.normal(0, 5)
+                early_hours = max(1, min(72, early_hours))
                 submit_time = deadline - timedelta(hours=early_hours)
 
             res["submit_date"] = submit_time.strftime("%Y-%m-%d %H:%M")
-        else:
-            if task_idx == n_tasks - 1:
-                submit_day = deadline - timedelta(days=float(rng.uniform(0, 1.5)))
-            else:
-                procrastination = (1.0 - flow_i) * window
-                base_early = window - procrastination + rng.normal(0, 1.0)
-                base_early = max(0, min(window, base_early))
-                submit_day = deadline - timedelta(days=base_early)
 
-            # --- تصحيح عطلة نهاية الأسبوع ---
-            weekday = submit_day.weekday()   # 0=Mon … 4=Fri, 5=Sat, 6=Sun
+        else:
+            # المجموعات المفتوحة (G1, G3): حرية كاملة حتى اليوم 21
+            final_deadline = START_DATE + timedelta(days=21)
+
+            if task_idx == n_tasks - 1:
+                submit_day_offset = 21 - float(rng.uniform(0, 1.5))
+            else:
+                # سلوك التسويف البشري
+                ideal_day = (task_idx + 1) * (21.0 / n_tasks)
+                procrastination = (1.0 - flow_i) * (20 - ideal_day)
+                actual_day = ideal_day + procrastination + rng.normal(0, 1.5)
+                submit_day_offset = max(task_idx * 1.5, min(20.5, actual_day))
+
+            submit_day = START_DATE + timedelta(days=submit_day_offset)
+
+            # تصحيح عطلة نهاية الأسبوع
+            weekday = submit_day.weekday()
             if weekday == 4:  # الجمعة
                 if flow_i > 0.6:
-                    # طالب منخرط: يُنهي قبل العطلة (الخميس)
                     submit_day -= timedelta(days=1)
                 elif rng.random() < 0.5:
-                    # مسوّف: يتأخر إلى ما بعد العطلة (الأحد) — فقط إذا لم يتجاوز الموعد
                     candidate = submit_day + timedelta(days=2)
-                    if candidate <= deadline:
+                    if candidate <= final_deadline:
                         submit_day = candidate
-            elif weekday == 5:  # السبت (يوم الموعد النهائي عادةً)
+            elif weekday == 5:  # السبت
                 if flow_i > 0.5:
-                    # طالب متوسط/منخرط: يُنهي قبل العطلة بيوم (الخميس)
                     submit_day -= timedelta(days=2)
-                # المسوّف يبقى على السبت (يوم الموعد ذاته — مقبول)
 
-            hour   = int(rng.integers(9, 23))
+            hour = int(rng.integers(14, 23))
             minute = int(rng.integers(0, 60))
             submit_dt = submit_day.replace(hour=hour, minute=minute, second=0)
             res["submit_date"] = submit_dt.strftime("%Y-%m-%d %H:%M")
+            res["is_late"] = False
+            res["hours_late"] = 0
 
 
 def apply_late_penalties(all_results, students):

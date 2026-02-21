@@ -98,33 +98,33 @@ text
 ## 📁 هيكل المشروع
 📦 Google Apps Script Project
 │
-├── 📄 config.gs # ملف الإعدادات وبيانات الاختبار (JSON)
+├── 📄 config.js # ملف الإعدادات وبيانات الاختبار (JSON)
 │ ├── getTestConfig() → إعدادات + أسئلة + إجابات
 │ ├── loadConfigFromDrive() → تحميل من ملف خارجي
 │ └── saveConfigToDrive() → حفظ كملف JSON
 │
-├── 📄 main.gs # الدوال الرئيسية للتشغيل
+├── 📄 main.js # الدوال الرئيسية للتشغيل
 │ ├── runPreTest() → بدء التطبيق القبلي
 │ ├── runPostTest() → بدء التطبيق البعدي
 │ └── processQueue() → معالج تلقائي
 │
-├── 📄 engine.gs # محرك المحاكاة
+├── 📄 engine.js # محرك المحاكاة
 │ ├── extractAnswers() → استخراج الإجابات من JSON
 │ ├── generateProfiles() → توليد بروفايلات الطلاب
 │ ├── submitResponse() → إرسال رد طالب
 │ └── verifyStatistical...() → التحقق الإحصائي
 │
-├── 📄 scheduler.gs # الجدولة الزمنية
+├── 📄 scheduler.js # الجدولة الزمنية
 │ ├── createSchedule() → إنشاء جدول 3 أيام
 │ ├── distributePerDay() → توزيع الطلاب على الأيام
 │ ├── buildQueue() → بناء قائمة الانتظار
 │ └── setupTrigger() → إنشاء المؤقت
 │
-├── 📄 stats.gs # الإحصائيات والتقارير
+├── 📄 stats.js # الإحصائيات والتقارير
 │ ├── printPhaseReport() → تقرير مرحلة واحدة
 │ └── printFinalReport() → التقرير النهائي المقارن
 │
-└── 📄 utils.gs # الدوال المساعدة
+└── 📄 utils.js # الدوال المساعدة
 ├── checkStatus() → متابعة التقدم
 ├── stopSimulation() → إيقاف طوارئ
 ├── resetAll() → إعادة تعيين
@@ -174,15 +174,15 @@ text
 
 اضغط "+" بجانب "Files"
 اختر "Script"
-سمِّ الملف (بدون .gs)
+سمِّ الملف (بدون .js — clasp يقبل .js و .gs)
 الصق الكود المناسب
 الملفات المطلوبة:
-├── config (الصق كود config.gs)
-├── main (الصق كود main.gs)
-├── engine (الصق كود engine.gs)
-├── scheduler (الصق كود scheduler.gs)
-├── stats (الصق كود stats.gs)
-└── utils (الصق كود utils.gs)
+├── config (الصق كود config.js)
+├── main (الصق كود main.js)
+├── engine (الصق كود engine.js)
+├── scheduler (الصق كود scheduler.js)
+├── stats (الصق كود stats.js)
+└── utils (الصق كود utils.js)
 
 💡 ملاحظة: امسح ملف Code.gs الافتراضي
 
@@ -218,7 +218,7 @@ text
 
 ### الإعداد الأساسي
 
-في ملف `config.gs`، عدّل رابط الفورم:
+في ملف `config.js`، عدّل رابط الفورم:
 
 ```javascript
 "settings": {
@@ -260,7 +260,7 @@ JavaScript
 التشغيل السريع (Quick Start)
 JavaScript
 
-// الخطوة 1: ضبط رابط الفورم في config.gs
+// الخطوة 1: ضبط رابط الفورم في config.js
 // الخطوة 2: تشغيل القبلي
 runPreTest()       // ← شغّل هذه الدالة
 
@@ -422,7 +422,7 @@ saveConfigToDrive()
 // → يعطيك رابط الملف و ID
 
 // تحميل من ملف JSON
-// ضع الـ ID في main.gs:
+// ضع الـ ID في main.js:
 var CONFIG_FILE_ID = "1abc...xyz";
 تعديل الأسئلة
 JavaScript
@@ -665,7 +665,7 @@ text
 نعم، بشرط:
 
 الفورم يحتوي على أسئلة MCQ (اختيار من متعدد)
-تعدّل ملف config.gs بالأسئلة والإجابات الصحيحة
+تعدّل ملف config.js بالأسئلة والإجابات الصحيحة
 تتأكد إن ترتيب الأسئلة في JSON يطابق ترتيبها في الفورم
 </details><details> <summary><b>هل الردود هتبان إنها من نفس الشخص؟</b></summary>
 لو الفورم بيجمع إيميلات → أيوه، كلها من إيميلك
@@ -695,7 +695,7 @@ Google Apps Script: 6 دقائق لكل تنفيذ
 → هيكمّل من حيث وقف (لو مخلّصتش resetAll)
 </details><details> <summary><b>ازاي أضيف أسئلة جديدة؟</b></summary>
 أضف السؤال في الفورم
-أضف السؤال في config.gs → questions[]
+أضف السؤال في config.js → questions[]
 حدّث skillsBreakdown لو لزم
 تأكد إن الترتيب صح
 </details>
@@ -777,14 +777,14 @@ text
 ╠════════════════════════════════════════════════════╣
 ║                                                    ║
 ║  📄 README.md        ← الملف ده (التوثيق)          ║
-║  📄 config.gs        ← الإعدادات + JSON الأسئلة    ║
-║  📄 main.gs          ← الدوال الرئيسية              ║
-║  📄 engine.gs        ← محرك المحاكاة                ║
-║  📄 scheduler.gs     ← الجدولة الزمنية              ║
-║  📄 stats.gs         ← التقارير الإحصائية           ║
-║  📄 utils.gs         ← الدوال المساعدة              ║
+║  📄 config.js        ← الإعدادات + JSON الأسئلة    ║
+║  📄 main.js          ← الدوال الرئيسية              ║
+║  📄 engine.js        ← محرك المحاكاة                ║
+║  📄 scheduler.js     ← الجدولة الزمنية              ║
+║  📄 stats.js         ← التقارير الإحصائية           ║
+║  📄 utils.js         ← الدوال المساعدة              ║
 ║                                                    ║
-║  💡 الخطوة الأولى: عدّل formUrl في config.gs      ║
+║  💡 الخطوة الأولى: عدّل formUrl في config.js      ║
 ║  💡 ثم شغّل: runPreTest()                          ║
 ║                                                    ║
 ╚════════════════════════════════════════════════════╝
