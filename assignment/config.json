@@ -1,9 +1,9 @@
 {
     "api": {
-        "provider": "modal",
-        "baseUrl": "https://api.us-west-2.modal.direct/v1",
-        "model": "zai-org/GLM-5-FP8",
-        "apiKeyEnv": "MODAL_API_KEY"
+        "provider": "google",
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-1.5-flash",
+        "apiKeyEnv": "GEMINI_API_KEY"
     },
     "input": {
         "simulation_data": "../simulation_data.json",
