@@ -1,0 +1,39 @@
+{
+    "api": {
+        "provider": "modal",
+        "baseUrl": "https://api.us-west-2.modal.direct/v1",
+        "model": "zai-org/GLM-5-FP8",
+        "apiKeyEnv": "MODAL_API_KEY"
+    },
+    "input": {
+        "simulation_data": "../simulation_data.json",
+        "constants": "../constants.json",
+        "gradebook_csv": "../1 - Gradebook.csv"
+    },
+    "output": {
+        "docx_enabled": true,
+        "json_enabled": true,
+        "dir": "outputs"
+    },
+    "realism": {
+        "writingStyles": [
+            "مباشر ومختصر",
+            "أكاديمي تحليلي",
+            "عملي واقعي",
+            "تأملي وفلسفي",
+            "نقدي متسائل",
+            "وصفي غني بالتفاصيل"
+        ],
+        "interests": [
+            "العلوم والأحياء (طموح طب)",
+            "البرمجة والألعاب الإلكترونية",
+            "الرياضة واللياقة البدنية",
+            "ريادة الأعمال والابتكار",
+            "الفنون والرسم الرقمي",
+            "المواطنة والقضايا المجتمعية"
+        ],
+        "rateLimitSec": 2,
+        "validateOutput": true,
+        "maxRetries": 2
+    }
+}
