@@ -1,0 +1,114 @@
+[
+    {
+        "id": 1,
+        "category": "عربي",
+        "reference": "أباظة، أمل عبد السميع. (2012). التدفق النفسي وعلاقته بالسعادة والبهجة. مجلة البحث العلمي في التربية، (21)، 140.",
+        "note": "لم يُستشهد بها مباشرة في الإطار النظري — قد تكون مستشهد بها في جزء آخر من الرسالة",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية (مقدمة، دراسات سابقة...). لو لأ → احذفها من القائمة",
+        "status": "❌"
+    },
+    {
+        "id": 2,
+        "category": "عربي",
+        "reference": "بكر، عبد الحميد مصطفى. (2015). بيئة إلكترونية مقترحة... مجلة القراءة والمعرفة، (173).",
+        "note": "لم يُستشهد بها مباشرة في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها من القائمة",
+        "status": "❌"
+    },
+    {
+        "id": 3,
+        "category": "أجنبي",
+        "reference": "Adamczyk, S., Bullinger, A., & Möslein, K. (2012). Innovation contests: A review, classification and outlook.",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 4,
+        "category": "أجنبي",
+        "reference": "Asare, K. O., & Kwanya, T. (2018). Influence of creative background on performance in competitive crowdsourcing.",
+        "note": "✅ مستشهد بيه فعلاً في تعريف حشد المصادر التنافسي",
+        "action_needed": "لا يوجد — المرجع مستشهد بيه وموجود في القائمة",
+        "status": "✅ تم التأكيد"
+    },
+    {
+        "id": 5,
+        "category": "أجنبي",
+        "reference": "Carter Jr, R. A., Rice, M., Yang, S., & Jackson, H. A. (2020). Self-regulated learning in online learning environments.",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 6,
+        "category": "أجنبي",
+        "reference": "Csikszentmihalyi, M., & Nakamura, J. (1999). Emerging goals and the self-regulation of behavior.",
+        "note": "لم يُستشهد بها في الإطار النظري — يوجد Nakamura & Csikszentmihalyi 2001 و 2009 لكن هذا مرجع مختلف (1999)",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 7,
+        "category": "أجنبي",
+        "reference": "Funa, A. A., & Prudente, M. S. (2021). Effectiveness of problem-based learning on secondary students' achievement in science.",
+        "note": "لم يُستشهد بها في الإطار النظري — يوجد Funa et al. (2022) لكن هذا مرجع مختلف",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 8,
+        "category": "أجنبي",
+        "reference": "Jackson, S. A., Martin, A. J., & Eklund, R. C. (2008). Long and short measures of flow.",
+        "note": "لم يُستشهد بها — المستشهد به هو Jackson et al. (2001) و Jackson & Marsh (1996)",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 9,
+        "category": "أجنبي",
+        "reference": "Kornfield, R., et al. (2022). Involving crowdworkers with lived experience in content-development for push-based digital mental health tools.",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 10,
+        "category": "أجنبي",
+        "reference": "Lee, C. (2010). Problem solving in technology education.",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 11,
+        "category": "أجنبي",
+        "reference": "Palvia, P., Palvia, S., & Xia, W. (2019). Competition Increases Effort and Improves Performance in Crowdsourcing Teams.",
+        "note": "✅ مستشهد بيه فعلاً في تعريف حشد المصادر التنافسي",
+        "action_needed": "لا يوجد — المرجع مستشهد بيه وموجود في القائمة",
+        "status": "✅ تم التأكيد"
+    },
+    {
+        "id": 12,
+        "category": "أجنبي",
+        "reference": "UNESCO. (2020). Education for sustainable development: A roadmap.",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 13,
+        "category": "أجنبي",
+        "reference": "Woods, D. R. (1987). How might I teach problem solving?",
+        "note": "لم يُستشهد بها في الإطار النظري",
+        "action_needed": "تأكد هل مستشهد بها في أجزاء تانية. لو لأ → احذفها",
+        "status": "❌"
+    },
+    {
+        "id": 14,
+        "category": "أجنبي",
+        "reference": "Hosseini, S. (2014). Competitive Team-Based Learning versus Group Investigation. International Journal of Instruction, 7(1), 177-188.",
+        "note": "✅ مستشهد بيه فعلاً — المرجع الكامل متأكد",
+        "action_needed": "لا يوجد — المرجع مستشهد بيه وموجود في القائمة",
+        "status": "✅ تم التأكيد"
+    }
+]

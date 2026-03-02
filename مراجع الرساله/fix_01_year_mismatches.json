@@ -1,0 +1,135 @@
+[
+    {
+        "id": 1,
+        "issue": "اختلاف السنة",
+        "citation_in_body": "Lemay (2011)",
+        "body_location": "سطر 225: وفقًا لعدد من الباحثين (مثل Lemay, 2011; Reid, 2007)",
+        "reference_in_list": "Lemay, P. (2007). Developing a pattern language for flow experiences in video games [Doctoral dissertation, University of Montreal].",
+        "year_in_body": "2011",
+        "year_in_list": "2007",
+        "recommended_fix": "غيّر السنة في المتن من 2011 إلى 2007",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 2,
+        "issue": "اختلاف السنة",
+        "citation_in_body": "Reid (2007)",
+        "body_location": "سطر 225: وفقًا لعدد من الباحثين (مثل Lemay, 2011; Reid, 2007)",
+        "reference_in_list": "Reid, D. (2011). Mindfulness and flow in occupational engagement: presence in doing. Canadian Journal of Occupational Therapy, 78, 50-56.",
+        "year_in_body": "2007",
+        "year_in_list": "2011",
+        "recommended_fix": "غيّر السنة في المتن من 2007 إلى 2011",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 3,
+        "issue": "اختلاف السنة",
+        "citation_in_body": "Jonassen (2006)",
+        "body_location": "سطر 168: كما يعرفها يوناسن (Jonassen, 2006, p. 91)",
+        "reference_in_list": "Jonassen, D. H. (Ed.). (2007). Learning to solve complex scientific problems. Lawrence Erlbaum Associates.",
+        "year_in_body": "2006",
+        "year_in_list": "2007",
+        "recommended_fix": "غيّر السنة في المتن من 2006 إلى 2007",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 4,
+        "issue": "اختلاف السنة",
+        "citation_in_body": "Whitehill & Seltzer (2020)",
+        "body_location": "سطر 139: وبحثت دراسة ويتهل وسلتزر (Whitehill & Seltzer, 2020)",
+        "reference_in_list": "Whitehill, J., & Seltzer, M. (2017, April). A crowdsourcing approach to collecting tutorial videos. In Proceedings of the Fourth (2017) ACM Conference on Learning@ Scale (pp. 157-160).",
+        "year_in_body": "2020",
+        "year_in_list": "2017",
+        "recommended_fix": "غيّر السنة في المتن من 2020 إلى 2017",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 5,
+        "issue": "اختلاف السنة",
+        "citation_in_body": "Morschheuser et al. (2019)",
+        "body_location": "سطر 231: (Morschheuser, Hamari, & Maedche, 2019)",
+        "reference_in_list": "Morschheuser, B., Hamari, J., Koivisto, J., & Maedche, A. (2017). Gamified crowdsourcing: Conceptualization, literature review, and future agenda. International Journal of Human-Computer Studies, 106, 26-43.",
+        "year_in_body": "2019",
+        "year_in_list": "2017",
+        "recommended_fix": "غيّر السنة في المتن من 2019 إلى 2017",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 6,
+        "issue": "اختلاف الاسم - يُستشهد بالاسم الثالث بدل اسم العائلة",
+        "citation_in_body": "عبد الغفار (2018)",
+        "body_location": "سطر 3: ويتوسع عبد الغفار (2018، ص. 21)",
+        "reference_in_list": "سرحان، أحمد محمد عبد الغفار. (2018). تطوير بيئة تعلم إلكترونية...",
+        "name_in_body": "عبد الغفار",
+        "name_in_list": "سرحان",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'عبد الغفار (2018)' إلى 'سرحان (2018)' — أو غيّر القائمة ليكون الترتيب تحت 'عبد الغفار'",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 7,
+        "issue": "اختلاف الاسم - يُستشهد بالاسم الأوسط بدل العائلة",
+        "citation_in_body": "نبيل السيد (2013) و نبيل السيد (2021)",
+        "body_location": "سطر 9: (نبيل السيد, 2021)، سطر 165: نبيل السيد (2013، ص. 12)",
+        "reference_in_list_2013": "محمد، نبيل السيد. (2013). تصميم حقيبة إلكترونية...",
+        "reference_in_list_2021": "محمد، نبيل السيد. (2021). نمط حشد المصادر الإلکترونية...",
+        "name_in_body": "نبيل السيد",
+        "name_in_list": "محمد، نبيل السيد",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'نبيل السيد' إلى 'محمد' (اسم العائلة حسب APA) — أو وحّد القائمة ليكون الاسم 'نبيل السيد محمد'",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 8,
+        "issue": "اختلاف الاسم - يُستشهد بالأسماء الأولى بدل العائلة",
+        "citation_in_body": "شرين السيد ووفاء محمود (2022)",
+        "body_location": "سطر 9: (شرين السيد ووفاء محمود, 2022)",
+        "reference_in_list": "السيد، شرين ابراهيم، ورجب، وفاء محمود عبدالفتاح. (2022).",
+        "name_in_body": "شرين السيد ووفاء محمود",
+        "name_in_list": "السيد ورجب",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'شرين السيد ووفاء محمود' إلى 'السيد ورجب (2022)' حسب نظام APA",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 9,
+        "issue": "اختلاف الاسم - يُستشهد بالاسم الأوسط",
+        "citation_in_body": "شيماء مصطفى محمد وآخرون (2023)",
+        "body_location": "سطر 191: دراسة شيماء مصطفى محمد وآخرون (2023)",
+        "reference_in_list": "إبراهيم، شيماء مصطفى محمد، وعبد الحميد... (2023).",
+        "name_in_body": "شيماء مصطفى محمد",
+        "name_in_list": "إبراهيم",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'شيماء مصطفى محمد' إلى 'إبراهيم وآخرون (2023)' حسب نظام APA",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 10,
+        "issue": "اختلاف الاسم - يُستشهد بالاسم + اللقب",
+        "citation_in_body": "أسماء عبد الصمد (2018)",
+        "body_location": "سطر 92: دراسة أسماء عبد الصمد، ۲۰۱۸",
+        "reference_in_list": "عبد الصمد، أسماء السيد. (2018). أثر التفاعل بين نمط الفرص المتاحة...",
+        "name_in_body": "أسماء عبد الصمد",
+        "name_in_list": "عبد الصمد",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'أسماء عبد الصمد' إلى 'عبد الصمد (2018)' حسب نظام APA",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 11,
+        "issue": "اختلاف الاسم - يُستشهد بالاسم الأوسط",
+        "citation_in_body": "عبد العزيز طلبة وآخرون (2020)",
+        "body_location": "سطر 83: (عبد العزيز طلبة وآخرون، ٢٠٢٠)، سطر 87",
+        "reference_in_list": "عبد الحميد، عبد العزيز طلبة، والمغاوري، تامر، والملاح، نادين كمال كريت. (2020). المحفزات التعليمية التكيفية.",
+        "name_in_body": "عبد العزيز طلبة",
+        "name_in_list": "عبد الحميد",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'عبد العزيز طلبة وآخرون' إلى 'عبد الحميد وآخرون (2020)' حسب نظام APA",
+        "status": "❌ لم يتم التصحيح"
+    },
+    {
+        "id": 12,
+        "issue": "احتمال نفس المرجع مُستشهد باسم مختلف",
+        "citation_in_body": "بلال (2024)",
+        "body_location": "سطر 71: ودرست بلال (2024) أثر اختلاف نمط حشد المصادر...",
+        "reference_in_list": "أباصيري، محمد بلال أ. (2024). أثر اختلاف نمط حشد المصادر الإلكترونية...",
+        "name_in_body": "بلال",
+        "name_in_list": "أباصيري",
+        "recommended_fix": "غيّر الاستشهاد في المتن من 'بلال (2024)' إلى 'أباصيري (2024)' — لأنه نفس المرجع مُستشهد باسم مختلف",
+        "status": "❌ لم يتم التصحيح"
+    }
+]
