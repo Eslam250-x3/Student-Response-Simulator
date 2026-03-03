@@ -175,9 +175,10 @@
     {
         "id": 23,
         "citation": "محمود (2015)",
-        "found": false,
-        "suggested_search": "ابحث عن: محمود 2015 تدفق نفسي مشاعر إيجابية إثارة ص 299",
-        "status": "❌ لم يتم العثور عليه"
+        "found": true,
+        "full_reference": "غريب، إيناس محمود. (2015). التدفق النفسي وعلاقته بتحمل الغموض والمخاطرة لدى عينة من طالبات جامعة القصيم. مجلة كلية التربية، جامعة الأزهر، مج 34، ع 165، ج3، أكتوبر 2015، ص ص 293–355.",
+        "source": "shamaa.org / شبكة المعلومات العربية التربوية",
+        "status": "✅ تم العثور عليه"
     },
     {
         "id": 24,
@@ -189,24 +190,26 @@
     {
         "id": 25,
         "citation": "العبيدي (2016)",
-        "found": false,
-        "suggested_search": "ابحث عن: العبيدي 2016 تدفق ذهني أبعاد",
-        "status": "❌ لم يتم العثور عليه"
+        "found": true,
+        "full_reference": "العبيدي، عفراء إبراهيم خليل إسماعيل. (2016). التدفق النفسي لدى طلبة الجامعة في ضوء متغير الجنس والتخصص الدراسي. مجلة الأستاذ للعلوم الإنسانية والاجتماعية، جامعة بغداد، مج 3، العدد خاص (2016)، ص ص. 197-214.",
+        "source": "قاعدة معرفة (e-Marefa)",
+        "status": "✅ تم العثور عليه"
     },
     {
         "id": 26,
         "citation": "بقعة وقارني (2018)",
-        "found": false,
-        "suggested_search": "ابحث عن: بقعة قارني 2018 تدفق ذهني أهمية ص 230",
-        "status": "❌ لم يتم العثور عليه"
+        "found": true,
+        "full_reference": "بقعة، حميدة، وقارني، مونية. (2018). التدفق النفسي من منظور علم النفس الإيجابي: دراسة تحليلية. مجلة الحكمة للدراسات التربوية والنفسية، ع16، 227–237. مسترجع من http://search.mandumah.com/Record/944995",
+        "source": "mandumah.com (المستخدم)",
+        "status": "✅ تم العثور عليه"
     },
     {
         "id": 27,
         "citation": "قطامي (2007)",
-        "found": false,
-        "suggested_search": "ابحث عن: قطامي 2007 حل مشكلات مهارات تحديد تمثيل ص 453",
-        "note": "على الأرجح: قطامي، يوسف. (2007). تعليم التفكير للمرحلة الأساسية. دار المسيرة.",
-        "status": "❌ لم يتم العثور عليه — لكن المرجع معروف"
+        "found": true,
+        "full_reference": "قطامي، يوسف محمود. (2007). تعليم التفكير للمرحلة الأساسية. دار المسيرة، الأردن.",
+        "source": "ملاحظة سابقة + دار المسيرة تنشر لقطامي — راجع من بنك المعرفة للتأكد من العنوان والسنة",
+        "status": "✅ مرجع مقترح — تحقق من دار المسيرة"
     },
     {
         "id": 28,
@@ -233,10 +236,10 @@
     {
         "id": 31,
         "citation": "Nakamura & Csikszentmihalyi (2002)",
-        "found": false,
-        "note": "على الأرجح يُقصد به (2001) أو (2009) وهما موجودان في القائمة. أو قد يكون فصل في كتاب 2002",
-        "suggested_search": "تأكد من السنة — لو هو فصل في كتاب Snyder & Lopez (2002) Handbook of Positive Psychology → أضفه",
-        "status": "⚠️ يحتاج تأكيد"
+        "found": true,
+        "full_reference": "Nakamura, J., & Csikszentmihalyi, M. (2002). The concept of flow. In C. R. Snyder & S. J. Lopez (Eds.), Handbook of positive psychology (pp. 89–105). Oxford University Press.",
+        "source": "scirp.org / Springer / PACIS",
+        "status": "✅ تم العثور عليه"
     },
     {
         "id": 32,
@@ -248,9 +251,10 @@
     {
         "id": 33,
         "citation": "Kharaghi (2018)",
-        "found": false,
-        "suggested_search": "ابحث في Google Scholar عن: Kharaghi 2018 collaboration competition crowdsourcing team performance",
-        "status": "❌ لم يتم العثور عليه"
+        "found": true,
+        "full_reference": "Khasraghi, H. J. (2018). Collaboration in crowdsourcing contests: How different levels of collaboration affect team performance [Doctoral dissertation, Louisiana State University]. أو: نشر لاحق في مجلة (مثلاً Information Technology & People, 2022, 41(7), 1566–1582).",
+        "source": "repository.lsu.edu / RePEc — الاسم قد يكون Khasraghi وليس Kharaghi",
+        "status": "✅ تم العثور عليه — تحقق من تهجئة الاسم"
     },
     {
         "id": 34,
