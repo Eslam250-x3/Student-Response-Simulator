@@ -196,6 +196,31 @@ class AssignmentGenerator:
 
                 self.team_submitter_by_milestone[(team_code, milestone)] = submitter_sid
 
+    @staticmethod
+    def _is_female(name: str) -> bool:
+        """
+        Heuristic: Detect gender from Arabic name.
+        Since all students in the current cohort are female, this returns True
+        if name doesn't belong to a known male set (extend as needed).
+        """
+        male_hints = ["أحمد", "محمد", "علي", "عبد", "محمود", "إبراهيم", "ياسر", "مصطفى", "خالد"]
+        # If it's a female name like "نورهان أحمد", the first name is the key.
+        first_name = name.split()[0].strip() if name else ""
+        
+        # known female names in this cohort
+        female_names = [
+            "نورهان", "سارة", "مريم", "هدى", "آية", "رنا", "دينا", "نهى", "شيماء", "إسراء", 
+            "ريهام", "منى", "سلمى", "لمياء", "أميرة", "حنان", "عبير", "رشا", "علا", "نجلاء",
+            "فاطمة", "زينب", "هبة", "ندى", "روان", "جنى", "بسمة", "ملك", "تقى", "لجين"
+        ]
+        if first_name in female_names:
+            return True
+        # Check against male first names
+        if first_name in male_hints and first_name not in ["نور"]: # 'noor' can be both
+            return False
+            
+        return True # Default to female for this cohort
+
     def generate_student_profile(self, student_id: str) -> dict:
         """Generate consistent profile (writing style, interest, M3 selection)."""
         seed = self.get_seed(student_id)
@@ -227,40 +252,60 @@ class AssignmentGenerator:
         task = self.tasks_info[milestone]
         is_time_pressure = student['group'] in ['G2', 'G4']
 
-        # ─── System Prompt (Persona) ───
-        parts = [
-            "أنت طالب مصري في الصف الأول الثانوي (15-16 سنة).",
-            "اكتب بأسلوب مراهق ذكي يحاول حل واجبه المدرسي بجدية.",
-            "استخدم لغة عربية فصحى بسيطة مناسبة لعمرك.",
-            "تجنب استخدام مصطلحات معقدة جداً أو احترافية إلا إذا كنت تستشهد بمصدر.",
-            "اجعل نبرتك تعكس تساؤلات وميول جيلك.",
-        ]
+        is_female = self._is_female(student.get('name', ''))
+
+        # ─── System Prompt (Persona & Constraints) ───
+        if is_female:
+            parts = [
+                "أنتِ طالبة مصرية في الصف الأول الثانوي (15-16 سنة).",
+                "اكتبي بأسلوب مراهقة ذكية تحاول حل واجبها المدرسي بجدية.",
+                "استخدمي لغة عربية فصحى بسيطة مناسبة لعمركِ.",
+                "تجنبي استخدام مصطلحات معقدة جداً أو احترافية إلا إذا كنتِ تستشهدين بمصدر.",
+                "اجعلي نبرتكِ تعكس تساؤلات وميول جيلكِ.",
+            ]
+        else:
+            parts = [
+                "أنت طالب مصري في الصف الأول الثانوي (15-16 سنة).",
+                "اكتب بأسلوب مراهق ذكي يحاول حل واجبه المدرسي بجدية.",
+                "استخدم لغة عربية فصحى بسيطة مناسبة لعمرك.",
+                "تجنب استخدام مصطلحات معقدة جداً أو احترافية إلا إذا كنت تستشهد بمصدر.",
+                "اجعل نبرتك تعكس تساؤلات وميول جيلك.",
+            ]
+
+        # Quality Constraints (Critical Fix Phase 7)
+        parts.extend([
+            "\n**قواعد هامة جداً للمخرجات (توقفي عن فعل الآتي):**",
+            "1. اكتبي الإجابة مباشرة وبالعربية فقط. لا تكتبي أي تخطيط أو تفكير أو مسودات بالإنجليزي أو العربي.",
+            "2. لا تستخدمي علامات التنسيق (bold **) أو العناوين (#) أو أي markdown. اكتبي كأنكِ تكتبي في ورقة واجب عادية.",
+            "3. لا تضعي النص بين علامات اقتباس.",
+            "4. لا تكتبي ملاحظات جانبية أو عد كلمات أو 'Let's draft'. فقط النص النهائي.",
+        ])
 
         # Skill-based adjustment
         if skill > 0.7:
-            parts.append("أنت طالب متميز، كتابتك منظمة وعميقة ودقيقة.")
+            parts.append("أنتِ طالبة متميزة، كتابتكِ منظمة وعميقة ودقيقة." if is_female else "أنت طالب متميز، كتابتك منظمة وعميقة ودقيقة.")
         elif skill < 0.4:
-            parts.append("أنت طالب مستواك ضعيف، قد ترتكب بعض الأخطاء الإملائية البسيطة وتكون جملك غير مكتملة أحياناً.")
+            parts.append("أنتِ طالبة مستواكِ ضعيف، قد ترتكبين بعض الأخطاء الإملائية البسيطة وتكون جملكِ غير مكتملة أحياناً." if is_female else "أنت طالب مستواك ضعيف، قد ترتكب بعض الأخطاء الإملائية البسيطة وتكون جملك غير مكتملة أحياناً.")
         else:
-            parts.append("أنت طالب متوسط المستوى، شرحك واضح وبسيط.")
+            parts.append("أنتِ طالبة متوسطة المستوى، شرحكِ واضح وبسيط." if is_female else "أنت طالب متوسط المستوى، شرحك واضح وبسيط.")
 
         # Writing style & interest
-        parts.append(f"أسلوبك في الكتابة هو: {profile['writing_style']}.")
-        parts.append(f"أنت طالب مهتم بـ {profile['interest']}، لذا حاول ربط أفكارك بهذا الاهتمام كلما أمكن بشكل طبيعي.")
+        parts.append(f"أسلوبكِ في الكتابة هو: {profile['writing_style']}." if is_female else f"أسلوبك في الكتابة هو: {profile['writing_style']}.")
+        parts.append(f"أنتِ طالبة مهتمة بـ {profile['interest']}، لذا حاولي ربط أفكاركِ بهذا الاهتمام كلما أمكن بشكل طبيعي." if is_female else f"أنت طالب مهتم بـ {profile['interest']}، لذا حاول ربط أفكارك بهذا الاهتمام كلما أمكن بشكل طبيعي.")
 
         # Flow state
         flow_idx = student.get('flow_idx', 0.5)
         if flow_idx > 0.8:
-            parts.append("أنت الآن في حالة تدفق ذهني عالية، تشعر بالتركيز الشديد والاستمتاع والاندماج التام.")
+            parts.append("أنتِ الآن في حالة تدفق ذهني عالية، تشعرين بالتركيز الشديد والاستمتاع والاندماج التام." if is_female else "أنت الآن في حالة تدفق ذهني عالية، تشعر بالتركيز الشديد والاستمتاع والاندماج التام.")
         elif flow_idx < 0.3:
-            parts.append("أنت تشعر ببعض التشتت أو الملل، وقد تبدو كتابتك أقل حماساً أو تفتقر للتفاصيل.")
+            parts.append("أنتِ تشعرين ببعض التشتت أو الملل، وقد تبدو كتابتكِ أقل حماساً أو تفتقر للتفاصيل." if is_female else "أنت تشعر ببعض التشتت أو الملل، وقد تبدو كتابتك أقل حماساً أو تفتقر للتفاصيل.")
 
         # Lateness persona
         target = self.gradebook.get(student['id'], {})
         if target:
             is_late = target.get('lateness', {}).get(milestone, 'لا') == 'نعم'
             if is_late:
-                parts.append("أنت تسلم المهمة بعد الموعد النهائي، لذا قد تبدو نبرتك معتذرة قليلاً أو متوترة بسبب التأخير.")
+                parts.append("أنتِ تسلمين المهمة بعد الموعد النهائي، لذا قد تبدو نبرتكِ معتذرة قليلاً أو متوترة بسبب التأخير." if is_female else "أنت تسلم المهمة بعد الموعد النهائي، لذا قد تبدو نبرتك معتذرة قليلاً أو متوترة بسبب التأخير.")
 
         system_prompt = " ".join(parts)
 
@@ -332,8 +377,9 @@ class AssignmentGenerator:
             prompt_lines.append("- تجميع ومنسق للمهام M1, M2, M3, M4 بعد مراجعتها.")
             prompt_lines.append("- خاتمة (150 كلمة) تلخص أهم الدروس المستفادة.")
 
-        # Word count
-        prompt_lines.append(f"\nعدد الكلمات المطلوب: {task['minWords']}-{task['maxWords']} كلمة.")
+        # Word count (Stronger emphasis Phase 7)
+        prompt_lines.append(f"\nتنبيه هام جداً: يجب أن يكون طول النص بين {task['minWords']}-{task['maxWords']} كلمة بالضبط.")
+        prompt_lines.append(f"اكتبي نصاً طويلاً وغنياً بالتفاصيل، سيتم رفض الإجابة لو كانت قصيرة.")
 
         prompt = "\n".join(prompt_lines)
         return system_prompt, prompt

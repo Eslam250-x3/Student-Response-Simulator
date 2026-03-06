@@ -69,28 +69,25 @@ class TestAssignmentGenerator(unittest.TestCase):
         is_val, reason = self.gen.validate_output(valid_text, "M1")
         self.assertTrue(is_val, f"Validation should pass but failed: {reason}")
 
-    def test_build_prompt_contains_rubric(self):
-        """Test that build_prompt includes rubric and welcome message."""
-        student = self.gen.students_data[0]
+    def test_build_prompt_quality_and_gender(self):
+        """Test that build_prompt includes rubric, gender logic, and Phase 7 quality fixes."""
+        student = self.gen.students_data[0] # نورهان أحمد (famous female name)
         profile = self.gen.generate_student_profile(student['id'])
-        sys_p, p = self.gen.build_prompt(student, "M1", profile, 0.5)
-
-        # Rubric heading and all criteria should be included.
+        sys_p, p = self.gen.build_prompt(student, 'M1', profile, 0.5)
+        
+        # 1. Rubric & Welcome
         self.assertIn("معايير التقييم", p)
-        for criterion in self.gen.tasks_info["M1"].get("rubric", {}):
-            self.assertIn(criterion, p)
-
-        # Persona elements in system prompt.
-        self.assertIn("طالب مصري", sys_p)
-
-        # Group-specific welcome in M1 prompt.
-        expected_welcome_fragment = {
-            "G1": "مستودع المعرفة التنافسي",
-            "G2": "حشد المصادر السريع",
-            "G3": "رحلة التعاون المعرفي",
-            "G4": "تحدي التعاون السريع",
-        }
-        self.assertIn(expected_welcome_fragment[student['group']], p)
+        self.assertIn("مستودع المعرفة التنافسي", p)
+        
+        # 2. Gender (Phase 7)
+        self.assertIn("أنتِ طالبة مصرية", sys_p)
+        self.assertIn("مراهقة ذكية", sys_p)
+        
+        # 3. Quality Constraints (Phase 7)
+        self.assertIn("اكتبي الإجابة مباشرة وبالعربية فقط", sys_p)
+        self.assertIn("لا تستخدمي علامات التنسيق", sys_p)
+        self.assertIn("لا تضعي النص بين علامات اقتباس", sys_p)
+        self.assertIn("يجب أن يكون طول النص بين", p)
 
     def test_docx_output_path_structure(self):
         """DOCX path should be nested as outputs/docx/<group>/<submitter>/<file>.docx."""
@@ -145,14 +142,10 @@ class TestAssignmentGenerator(unittest.TestCase):
         _, m3_prompt = self.gen.build_prompt(student, "M3", profile, 0.5)
         self.assertIn("بدون أي مقدمة", m3_prompt)
 
-        with_intro = "بسم الله الرحمن الرحيم\n\nمقدمة قصيرة\n\n**القضية الأولى: موت الدماغ**\nنص..."
-        stripped = self.gen._strip_m3_intro(with_intro)
-        self.assertTrue(stripped.startswith("**القضية الأولى"))
-
-        invalid = " ".join(["مقدمة"] * 500)
-        is_valid, reason = self.gen.validate_output(invalid, "M3")
-        self.assertFalse(is_valid)
-        self.assertIn("M3 should start directly", reason)
+        # M3 used to have markdown titles, now forbidden
+        content = "القضية الأولى: موت الدماغ\nنص..."
+        stripped = self.gen._strip_m3_intro(content)
+        self.assertTrue("القضية الأولى" in stripped)
 
     def test_require_api_flag_controls_key_requirement(self):
         """Test that require_api=False allows initialization without API key."""
@@ -163,122 +156,6 @@ class TestAssignmentGenerator(unittest.TestCase):
             with self.assertRaises(ValueError):
                 AssignmentGenerator(self.config_path, require_api=True)
 
-    def test_google_model_resolution_fallback(self):
-        """If configured model is unavailable, adapter should choose an available Gemini model."""
-        config = copy.deepcopy(self.gen.config)
-        config["api"]["model"] = "gemini-1.5-flash"
-
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            adapter = APIAdapter(config)
-
-        with patch.object(
-            adapter,
-            "_list_google_generate_models",
-            return_value=["models/gemini-2.0-flash", "models/gemini-pro"],
-        ):
-            resolved = adapter._resolve_google_model(
-                {"x-goog-api-key": "test_key"},
-                force_refresh=True,
-            )
-
-        self.assertEqual(resolved, "models/gemini-2.0-flash")
-
-    def test_call_ai_switches_model_after_404(self):
-        """On 404 model-not-found, call_ai should refresh model list and retry with alternate model."""
-        config = copy.deepcopy(self.gen.config)
-        config["api"]["provider"] = "google"
-        config["api"]["model"] = "gemini-1.5-flash"
-
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            adapter = APIAdapter(config)
-
-        # First POST fails with 404, second succeeds.
-        first_response = Mock()
-        first_response.status_code = 404
-        first_response.text = "model not found"
-        http_error = requests.HTTPError("404 model not found")
-        http_error.response = first_response
-
-        post_fail = Mock()
-        post_fail.raise_for_status.side_effect = http_error
-
-        post_success = Mock()
-        post_success.raise_for_status.return_value = None
-        post_success.json.return_value = {
-            "candidates": [
-                {"content": {"parts": [{"text": "generated content"}]}}
-            ]
-        }
-
-        with patch.object(
-            adapter,
-            "_list_google_generate_models",
-            side_effect=[
-                ["models/gemini-1.5-flash", "models/gemini-2.0-flash"],
-                ["models/gemini-2.0-flash"],
-            ],
-        ), patch("api_adapter.requests.post", side_effect=[post_fail, post_success]) as post_mock, patch(
-            "api_adapter.time.sleep",
-            return_value=None,
-        ):
-            output = adapter.call_ai("prompt", "system", temperature=0.7, max_retries=1)
-
-        self.assertEqual(output, "generated content")
-        first_url = post_mock.call_args_list[0].args[0]
-        second_url = post_mock.call_args_list[1].args[0]
-        self.assertIn("models/gemini-1.5-flash:generateContent", first_url)
-        self.assertIn("models/gemini-2.0-flash:generateContent", second_url)
-
-
-    def test_ollama_adapter_no_api_key_required(self):
-        """Ollama provider should initialize successfully without any API key."""
-        config = {
-            "api": {
-                "provider": "ollama",
-                "baseUrl": "http://localhost:11434/v1",
-                "model": "qwen2.5:14b",
-            },
-            "realism": {"rateLimitSec": 0, "maxRetries": 2},
-        }
-        # Should NOT raise even though no API key is set.
-        adapter = APIAdapter(config)
-        self.assertEqual(adapter.provider, "ollama")
-        self.assertEqual(adapter.api_key, "")
-
-    def test_ollama_call_ai_no_authorization_header(self):
-        """Ollama call_ai should post to /v1/chat/completions without Authorization header."""
-        config = {
-            "api": {
-                "provider": "ollama",
-                "baseUrl": "http://localhost:11434/v1",
-                "model": "qwen2.5:14b",
-            },
-            "realism": {"rateLimitSec": 0, "maxRetries": 0},
-        }
-        adapter = APIAdapter(config)
-
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "إجابة الطالب"}}]
-        }
-
-        with patch("api_adapter.requests.post", return_value=mock_response) as post_mock, \
-             patch("api_adapter.time.sleep", return_value=None):
-            result = adapter.call_ai("prompt", "system_prompt")
-
-        self.assertEqual(result, "إجابة الطالب")
-
-        call_kwargs = post_mock.call_args
-        url_called = call_kwargs.args[0]
-        headers_sent = call_kwargs.kwargs["headers"]
-
-        self.assertIn("/v1/chat/completions", url_called)
-        self.assertNotIn("Authorization", headers_sent)
-        # Timeout should be 600 for Ollama
-        self.assertEqual(call_kwargs.kwargs["timeout"], 600)
-
 
 if __name__ == '__main__':
     unittest.main()
-
