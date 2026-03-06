@@ -8,6 +8,7 @@ import os
 import requests
 import time
 import logging
+from ollama import chat as ollama_chat
 
 logger = logging.getLogger(__name__)
 
@@ -151,21 +152,37 @@ class APIAdapter:
                 "generationConfig": gen_config,
             }
         elif self.provider == 'ollama':
-            # Ollama — OpenAI-compatible local server, no auth needed.
-            url = f"{self.base_url}/chat/completions"
-            headers = {"Content-Type": "application/json"}
-            payload = {
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
+            # Ollama — use official Python SDK (from ollama import chat).
+            # This bypasses the HTTP retry loop below and calls the SDK directly.
+            options: dict = {
                 "temperature": temperature,
-                "max_tokens": max_output_tokens,
-                "stream": False,
+                "num_predict": max_output_tokens,
             }
             if seed is not None:
-                payload["seed"] = seed
+                options["seed"] = seed
+
+            for attempt in range(retries + 1):
+                try:
+                    response = ollama_chat(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user",   "content": prompt},
+                        ],
+                        options=options,
+                    )
+                    time.sleep(self.rate_limit)
+                    return response.message.content
+                except Exception as e:
+                    if attempt == retries:
+                        raise
+                    wait_time = 2 ** (attempt + 1)
+                    logger.warning(
+                        "Ollama error (attempt %s/%s): %s. Retrying in %ss...",
+                        attempt + 1, retries + 1, e, wait_time,
+                    )
+                    time.sleep(wait_time)
+            raise RuntimeError("Exceeded max retries for Ollama")
         else:
             # Generic OpenAI-compatible endpoint (e.g. LiteLLM, OpenRouter, etc.)
             url = f"{self.base_url}/chat/completions"
@@ -185,8 +202,8 @@ class APIAdapter:
             if seed is not None:
                 payload["seed"] = seed
 
-        # Ollama runs locally — inference can be slow, allow more time.
-        request_timeout = 600 if self.provider == 'ollama' else 180
+        # Ollama is handled above via its SDK — only reach here for Google / OpenAI-compatible.
+        request_timeout = 180
 
         for attempt in range(retries + 1):
             try:
@@ -200,7 +217,7 @@ class APIAdapter:
                 if self.provider == "google":
                     return result['candidates'][0]['content']['parts'][0]['text']
                 else:
-                    # Covers both 'ollama' and generic OpenAI-compatible.
+                    # Generic OpenAI-compatible (e.g. OpenRouter, LiteLLM).
                     # Reasoning models (e.g. gpt-oss-120b) may return content=None
                     # and put the answer in the 'reasoning' field instead.
                     msg = result['choices'][0]['message']
