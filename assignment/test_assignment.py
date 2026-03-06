@@ -230,5 +230,55 @@ class TestAssignmentGenerator(unittest.TestCase):
         self.assertIn("models/gemini-2.0-flash:generateContent", second_url)
 
 
+    def test_ollama_adapter_no_api_key_required(self):
+        """Ollama provider should initialize successfully without any API key."""
+        config = {
+            "api": {
+                "provider": "ollama",
+                "baseUrl": "http://localhost:11434/v1",
+                "model": "qwen2.5:14b",
+            },
+            "realism": {"rateLimitSec": 0, "maxRetries": 2},
+        }
+        # Should NOT raise even though no API key is set.
+        adapter = APIAdapter(config)
+        self.assertEqual(adapter.provider, "ollama")
+        self.assertEqual(adapter.api_key, "")
+
+    def test_ollama_call_ai_no_authorization_header(self):
+        """Ollama call_ai should post to /v1/chat/completions without Authorization header."""
+        config = {
+            "api": {
+                "provider": "ollama",
+                "baseUrl": "http://localhost:11434/v1",
+                "model": "qwen2.5:14b",
+            },
+            "realism": {"rateLimitSec": 0, "maxRetries": 0},
+        }
+        adapter = APIAdapter(config)
+
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "إجابة الطالب"}}]
+        }
+
+        with patch("api_adapter.requests.post", return_value=mock_response) as post_mock, \
+             patch("api_adapter.time.sleep", return_value=None):
+            result = adapter.call_ai("prompt", "system_prompt")
+
+        self.assertEqual(result, "إجابة الطالب")
+
+        call_kwargs = post_mock.call_args
+        url_called = call_kwargs.args[0]
+        headers_sent = call_kwargs.kwargs["headers"]
+
+        self.assertIn("/v1/chat/completions", url_called)
+        self.assertNotIn("Authorization", headers_sent)
+        # Timeout should be 600 for Ollama
+        self.assertEqual(call_kwargs.kwargs["timeout"], 600)
+
+
 if __name__ == '__main__':
     unittest.main()
+

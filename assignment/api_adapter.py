@@ -1,5 +1,5 @@
 """
-api_adapter.py — طبقة موحدة لاستدعاء API (Google Gemini / OpenAI-compatible)
+api_adapter.py — طبقة موحدة لاستدعاء API (Google Gemini / OpenAI-compatible / Ollama)
 """
 
 from __future__ import annotations
@@ -17,16 +17,18 @@ class APIAdapter:
         self.provider: str = config['api']['provider']
         self.base_url: str = config['api']['baseUrl']
         self.model: str = config['api']['model']
-        self.api_key: str = os.getenv(config['api']['apiKeyEnv'], '')
+        api_key_env: str = config['api'].get('apiKeyEnv', '')
+        self.api_key: str = os.getenv(api_key_env, '') if api_key_env else ''
         self.rate_limit: int = config['realism']['rateLimitSec']
         self.max_retries: int = config['realism'].get('maxRetries', 2)
         self._resolved_google_model: str | None = None
         self._listed_google_models: list[str] | None = None
 
-        if not self.api_key:
+        # Ollama is a local server — no API key required.
+        if self.provider != 'ollama' and not self.api_key:
             raise ValueError(
-                f"API Key not found in environment variable: {config['api']['apiKeyEnv']}\n"
-                f"Set it with: export {config['api']['apiKeyEnv']}=YOUR_KEY"
+                f"API Key not found in environment variable: {api_key_env}\n"
+                f"Set it with: export {api_key_env}=YOUR_KEY"
             )
 
     @staticmethod
@@ -148,8 +150,24 @@ class APIAdapter:
                 ],
                 "generationConfig": gen_config,
             }
+        elif self.provider == 'ollama':
+            # Ollama — OpenAI-compatible local server, no auth needed.
+            url = f"{self.base_url}/chat/completions"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": temperature,
+                "max_tokens": max_output_tokens,
+                "stream": False,
+            }
+            if seed is not None:
+                payload["seed"] = seed
         else:
-            # OpenAI compatible
+            # Generic OpenAI-compatible endpoint (e.g. LiteLLM, OpenRouter, etc.)
             url = f"{self.base_url}/chat/completions"
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -167,9 +185,12 @@ class APIAdapter:
             if seed is not None:
                 payload["seed"] = seed
 
+        # Ollama runs locally — inference can be slow, allow more time.
+        request_timeout = 600 if self.provider == 'ollama' else 180
+
         for attempt in range(retries + 1):
             try:
-                response = requests.post(url, headers=headers, json=payload, timeout=180)
+                response = requests.post(url, headers=headers, json=payload, timeout=request_timeout)
                 response.raise_for_status()
                 result = response.json()
 
@@ -179,7 +200,18 @@ class APIAdapter:
                 if self.provider == "google":
                     return result['candidates'][0]['content']['parts'][0]['text']
                 else:
-                    return result['choices'][0]['message']['content']
+                    # Covers both 'ollama' and generic OpenAI-compatible.
+                    # Reasoning models (e.g. gpt-oss-120b) may return content=None
+                    # and put the answer in the 'reasoning' field instead.
+                    msg = result['choices'][0]['message']
+                    text = msg.get('content') or msg.get('reasoning') or ''
+                    if not text:
+                        raise ValueError(
+                            "API returned empty content. "
+                            "If using a reasoning model, the response may only contain reasoning_details."
+                        )
+                    return text
+
 
             except requests.HTTPError as e:
                 response = e.response

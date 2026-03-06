@@ -1,0 +1,39 @@
+{
+    "api": {
+        "provider": "ollama",
+        "baseUrl": "http://localhost:11434/v1",
+        "model": "qwen2.5:14b",
+        "notes": "No API key needed — Ollama runs locally. Change 'model' to any model you have pulled (e.g. llama3.1:8b, aya:8b, gemma3:12b)."
+    },
+    "input": {
+        "simulation_data": "../simulation_data.json",
+        "constants": "../constants.json",
+        "gradebook_csv": "../1 - Gradebook.csv"
+    },
+    "output": {
+        "docx_enabled": true,
+        "json_enabled": true,
+        "dir": "outputs"
+    },
+    "realism": {
+        "writingStyles": [
+            "مباشر ومختصر",
+            "أكاديمي تحليلي",
+            "عملي واقعي",
+            "تأملي وفلسفي",
+            "نقدي متسائل",
+            "وصفي غني بالتفاصيل"
+        ],
+        "interests": [
+            "العلوم والأحياء (طموح طب)",
+            "البرمجة والألعاب الإلكترونية",
+            "الرياضة واللياقة البدنية",
+            "ريادة الأعمال والابتكار",
+            "الفنون والرسم الرقمي",
+            "المواطنة والقضايا المجتمعية"
+        ],
+        "rateLimitSec": 0,
+        "validateOutput": true,
+        "maxRetries": 3
+    }
+}
