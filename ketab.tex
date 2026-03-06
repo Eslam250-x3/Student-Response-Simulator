@@ -1,0 +1,140 @@
+\documentclass[12pt, a4paper]{extarticle}
+
+% --- UNIVERSAL PREAMBLE BLOCK ---
+\usepackage[a4paper, top=2cm, bottom=2cm, left=2.5cm, right=2.5cm]{geometry}
+\usepackage{fontspec}
+
+\usepackage[arabic, bidi=basic, provide=*]{babel}
+
+\babelprovide[import, onchar=ids fonts]{arabic}
+\babelprovide[import, onchar=ids fonts]{english}
+
+% Set default/Latin font to Sans Serif in the main (rm) slot
+\babelfont{rm}{Noto Sans}
+% Assign a specific font for Arabic text
+\babelfont[arabic]{rm}{Noto Sans Arabic}
+
+% Add because main language is not English
+\usepackage{enumitem}
+\setlist[itemize]{label=-}
+\setlist[enumerate]{label=\arabic*.}
+% ---------------------------------
+
+\usepackage{setspace}
+\setstretch{1.15}
+
+% حزم إضافة الإطار (البوردر)
+\usepackage{tikz}
+\usepackage{eso-pic}
+
+\begin{document}
+
+% رسم الإطار الخارجي المزدوج
+\AddToShipoutPictureBG{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \draw[line width=2pt, draw=black] ([xshift=1.2cm,yshift=-1.2cm]current page.north west) rectangle ([xshift=-1.2cm,yshift=1.2cm]current page.south east);
+    \draw[line width=0.5pt, draw=black] ([xshift=1.35cm,yshift=-1.35cm]current page.north west) rectangle ([xshift=-1.35cm,yshift=1.35cm]current page.south east);
+  \end{tikzpicture}%
+}
+
+% --- التاريخ والرقم المرجعي ---
+\noindent
+\begin{minipage}{0.48\textwidth}
+    \textbf{الرقم المرجعي:} .......................
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\raggedleft
+    \textbf{التاريخ:} \hspace{0.2cm} / \hspace{0.2cm} / \hspace{0.5cm} هـ
+\end{minipage}
+
+\vspace{0.1cm}
+\begin{flushright}
+    \textbf{الموافق:} \hspace{0.2cm} / \hspace{0.2cm} / \hspace{0.5cm} م
+\end{flushright}
+
+% --- خط فاصل ---
+\vspace{0.2cm}
+\noindent\rule{\textwidth}{0.8pt}
+\vspace{0.3cm}
+
+% --- العنوان ---
+\begin{center}
+    \textbf{\LARGE طلب إفادة بتطبيق أدوات وتجربة البحث}
+\end{center}
+
+\vspace{0.4cm}
+
+% --- المخاطَب ---
+\noindent \textbf{السيدة الفاضلة/ مديرة مدرسة فاطمة الزهراء الثانوية بنات}
+
+\noindent \textbf{حفظها الله}
+
+\noindent \textbf{تحية طيبة وبعد،}
+
+\vspace{0.3cm}
+
+% --- الموضوع ---
+\noindent \textbf{الموضوع:} طلب إفادة بتطبيق أدوات وتجربة البحث الميدانية.
+
+\vspace{0.3cm}
+
+% --- نص الخطاب ---
+\noindent نأمل من سيادتكم التفضل بالموافقة على منحي شهادة (إفادة) تفيد بقيامي بتطبيق \textbf{أدوات وتجربة البحث} الميدانية الخاصة ببحثي بعنوان:
+
+\vspace{0.2cm}
+\begin{center}
+    \textbf{``التفاعل بين نمط حشد المصادر (تنافسي/ تشاركي) وزمنه ببيئة تعلم إلكتروني وأثره في حل المشكلات والتدفق الذهني لطلاب المرحلة الثانوية''}
+\end{center}
+\vspace{0.2cm}
+
+\noindent وذلك على عينة من طالبات المدرسة، في الفترة من \textbf{[التاريخ]} إلى \textbf{[التاريخ]}. علماً بأن التطبيق قد شمل:
+
+\begin{enumerate}[nosep, topsep=2pt]
+    \item استخدام بيئة التعلم الإلكتروني المقترحة.
+    \item تطبيق أدوات القياس (اختبار حل المشكلات، ومقياس التدفق الذهني).
+\end{enumerate}
+
+\noindent ونود الإحاطة بأن الباحث قد \textbf{استعان بمعلمة الفصل} في مراحل تطبيق التجربة الميدانية لضمان سير العملية التعليمية وفق المعايير التربوية والأمنية المتبعة، ولتسهيل تفاعل الطالبات مع الأدوات البحثية.
+
+\vspace{0.2cm}
+\noindent وهذه الإفادة لتقديمها لجهة الدراسة (الكلية) لاستكمال إجراءات البحث.
+
+\vspace{0.3cm}
+\begin{center}
+    \textbf{وتفضلوا بقبول فائق الاحترام والتقدير،}
+\end{center}
+
+\vspace{0.4cm}
+
+% --- توقيعات الباحث والمشرف ---
+\noindent
+\begin{minipage}[t]{0.45\textwidth}
+    \textbf{المشرف على الرسالة:}\\[0.2cm]
+    أ.د/ .....................................\\[0.2cm]
+    \textbf{التوقيع:} .............................
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+    \textbf{مقدَّم لسيادتكم من الباحث:}\\[0.2cm]
+    إسلام محمد عبد النبي\\[0.2cm]
+    \textbf{قسم:} تكنولوجيا التعليم\\[0.2cm]
+    \textbf{كلية:} الدراسات العليا للتربية\\[0.2cm]
+    \textbf{التوقيع:} .............................
+\end{minipage}
+
+\vspace{0.6cm}
+\noindent\rule{\textwidth}{0.4pt}
+\vspace{0.3cm}
+
+% --- اعتماد مديرة المدرسة ---
+\begin{center}
+    \textbf{اعتماد مديرة المدرسة}
+\end{center}
+\vspace{0.2cm}
+\noindent
+\textbf{الاسم:} .....................................\\[0.2cm]
+\textbf{التوقيع:} .....................................\\[0.2cm]
+\textbf{الختم:}
+
+\end{document}
