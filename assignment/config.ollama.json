@@ -33,7 +33,7 @@
             "المواطنة والقضايا المجتمعية"
         ],
         "rateLimitSec": 0,
-        "validateOutput": true,
+        "validateOutput": false,
         "maxRetries": 3
     }
 }

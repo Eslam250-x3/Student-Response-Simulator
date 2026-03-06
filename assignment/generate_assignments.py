@@ -692,7 +692,16 @@ class AssignmentGenerator:
             logger.info("✅ All jobs already completed!")
             return
 
+        json_path = BASE_DIR / 'outputs' / 'json' / 'assignments.json'
         outputs_json: dict = {}
+        if json_path.exists():
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    outputs_json = json.load(f)
+                logger.info(f"Loaded {len(outputs_json)} existing entries from {json_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load existing JSON: {e}")
+
         completed = 0
 
         for i, job in enumerate(pending_jobs, 1):
