@@ -7,6 +7,14 @@ openpyxl>=3.0.0
 # For _read_docs.py (extract text from DOCX/PDF)
 python-docx>=0.8.11
 PyPDF2>=3.0.0
+
+# For pdf_to_txt_ocr.py (PDF to text via Google Vision OCR)
+PyMuPDF>=1.23.0
+google-cloud-vision>=3.4.0
 # For api_adapter.py
 requests>=2.28.0
 ollama>=0.4.0
+
+# For pdf_to_txt_ocr.py (PDF to TXT with Google Vision OCR)
+PyMuPDF>=1.23.0
+google-cloud-vision>=3.0.0
