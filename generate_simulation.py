@@ -47,10 +47,10 @@ DEFAULT_SETTINGS = {
     # Timing effect is mixed (no clear winner), so smaller differences
     # Target ranking: G3 > G4 > G1 ≥ G2
     "groupEffects": {
-        "G1": {"improvementBonus": 0.02,  "skillSpreadMod": 0.0},   # تنافسي + مفتوح
-        "G2": {"improvementBonus": -0.02, "skillSpreadMod": 0.02},  # تنافسي + محدد (ضغط زمني سلبي)
-        "G3": {"improvementBonus": 0.07,  "skillSpreadMod": -0.01}, # تشاركي + مفتوح (الأعلى)
-        "G4": {"improvementBonus": 0.04,  "skillSpreadMod": 0.01}   # تشاركي + محدد
+        "G1": {"improvementBonus": -0.03, "skillSpreadMod": 0.0},   # تنافسي + مفتوح
+        "G2": {"improvementBonus": -0.06, "skillSpreadMod": 0.02},  # تنافسي + محدد (ضغط زمني سلبي)
+        "G3": {"improvementBonus": 0.16,  "skillSpreadMod": -0.01}, # تشاركي + مفتوح (الأعلى)
+        "G4": {"improvementBonus": 0.11,  "skillSpreadMod": 0.01}   # تشاركي + محدد
     },
     
     # Flow scale pre/post
@@ -61,10 +61,10 @@ DEFAULT_SETTINGS = {
     # Open time → more autonomy → higher flow; Competition + time pressure → anxiety → lower flow
     # Target ranking: G3 > G1 > G4 > G2
     "flowGroupEffects": {
-        "G1": {"improvementBonus": 0.04},  # تنافسي + مفتوح (open helps flow)
-        "G2": {"improvementBonus": -0.02}, # تنافسي + محدد (worst for flow)
-        "G3": {"improvementBonus": 0.07},  # تشاركي + مفتوح (best for flow)
-        "G4": {"improvementBonus": 0.02}   # تشاركي + محدد
+        "G1": {"improvementBonus": 0.09},  # تنافسي + مفتوح (open helps flow)
+        "G2": {"improvementBonus": -0.05}, # تنافسي + محدد (worst for flow)
+        "G3": {"improvementBonus": 0.20},  # تشاركي + مفتوح (best for flow)
+        "G4": {"improvementBonus": 0.05}   # تشاركي + محدد
     },
     "flowBehavior": {"noiseLevel": 0.18, "consistencyMin": 0.55, "consistencyMax": 0.95},
     
