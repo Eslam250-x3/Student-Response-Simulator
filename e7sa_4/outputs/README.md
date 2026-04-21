@@ -2,20 +2,42 @@
 
 > **العينة:** N = 80 (20 × 4 مجموعات) بعد استبعاد 16 منسحبًا.
 > **مستوى الدلالة:** α = 0.05.
-> **أداة التحليل:** PSPPire على الماك (أو SPSS).
+> **أداة التحليل:** PSPP (GNU's SPSS-compatible engine) على الماك.
+
+---
+
+## ⚡ الطريقة السريعة — PSPP من الـ Terminal (الموصى بها)
+
+لو PSPPire GUI مش شغال أو عامل مشاكل، شغّل PSPP من الـ Terminal مباشرة. **نفس الـ engine ونفس النتائج** — بس أسرع وأوثق.
+
+```bash
+cd /Users/user/Documents/Student-Response-Simulator/e7sa_4/outputs
+pspp -o pspp_output.html -O format=html analysis.sps
+```
+
+**الناتج:**
+- `pspp_output.html` — كل الجداول والنتائج (يفتح في Safari بدبل-كليك)
+- `charts/*.png` — كل الرسوم البيانية
+
+**المميزات:**
+- الجداول HTML قابلة للنسخ المباشر (Cmd+C) ولزقها في Word
+- سريع (أقل من ثانية)
+- لا يعتمد على الواجهة الرسومية
 
 ---
 
 ## الملفات
 
-### 🎯 الأساسية (اللي بتستخدمها في PSPPire)
+### 🎯 الأساسية (اللي بتستخدمها)
 
 | الملف | الوصف |
 |---|---|
-| **`data_final.sav`** | **ملف الداتا** — افتحه في PSPPire (`File > Open > Data`) |
-| **`analysis.sps`** | **ملف الـ syntax** — افتحه (`File > Open > Syntax`) وشغله (`Run > All`) |
+| **`data_final.sav`** | ملف الداتا (96 صف × 223 عمود مع Labels عربية) |
+| **`analysis.sps`** | ملف الـ syntax (36+ أمر إحصائي) |
+| **`pspp_output.html`** | **نتائج التحليل الكاملة** — افتحه في Safari |
+| **`charts/`** | الرسوم البيانية (26 صورة PNG) |
 
-### 📋 مرجعية / توثيق (لا تحتاجها للتحليل)
+### 📋 مرجعية / توثيق
 
 | الملف | الفايدة |
 |---|---|
@@ -28,22 +50,14 @@
 
 ## خطوات التحليل
 
-### 1. افتح الداتا في PSPPire
+### 1. شغّل PSPP
 
-```
-File > Open > Data > data_final.sav
-```
-
-ستجد 96 صف × 223 عمود مع Labels عربية كاملة وValue Labels.
-
-### 2. شغّل الـ syntax
-
-```
-File > Open > Syntax > analysis.sps
-Run > All
+```bash
+cd /Users/user/Documents/Student-Response-Simulator/e7sa_4/outputs
+pspp -o pspp_output.html -O format=html analysis.sps
 ```
 
-PSPPire سيطبق أولًا `SELECT IF (Is_Dropout = 0)` لتقليص العينة إلى 80، ثم ينفذ جميع الاختبارات بالترتيب:
+`analysis.sps` يطبق أولًا `SELECT IF (Is_Dropout = 0)` لتقليص العينة إلى 80، ثم ينفذ الاختبارات بالترتيب:
 
 1. FREQUENCIES و DESCRIPTIVES (التحقق الأولي)
 2. MEANS (الإحصاء الوصفي)
@@ -56,20 +70,33 @@ PSPPire سيطبق أولًا `SELECT IF (Is_Dropout = 0)` لتقليص العي
 9. GLM × 12 (الأبعاد الثمانية + المهارات الأربع)
 10. GRAPH (الرسوم البيانية)
 
+### 2. افتح `pspp_output.html` في Safari
+
+دبل-كليك على الملف → هيفتح صفحة فيها كل الجداول.
+
 ### 3. انسخ الأرقام إلى `fasl_4/`
 
-من نافذة PSPPire Output، انسخ الأرقام من الجداول إلى placeholders في:
+من نافذة Safari:
+- حدد الجدول بالماوس → Cmd+C
+- الصقه مباشرة في Word أو في placeholders بـ `fasl_4/master_plan/sub_plans/`
 
-`fasl_4/master_plan/sub_plans/01_descriptive_stats.md`
-`fasl_4/master_plan/sub_plans/03_hypotheses_testing.md`
-`fasl_4/master_plan/sub_plans/04_results_interpretation.md`
-`fasl_4/master_plan/sub_plans/05_qualitative_analysis.md`
-
-استخدم **جدول الربط الكامل** في `../sub_plans/07_outputs_to_fasl4_mapping.md` — بيحدد لكل placeholder اسم الجدول في نافذة Output وإحداثية الرقم (الصف والعمود).
+استخدم **جدول الربط الكامل** في `../sub_plans/07_outputs_to_fasl4_mapping.md` — بيحدد لكل placeholder اسم الجدول في المخرجات وإحداثية الرقم (الصف والعمود).
 
 ---
 
-## ملاحظات مهمة
+## البديل — PSPPire GUI (لو فضّلت الواجهة الرسومية)
+
+```
+File > Open > Data     →  data_final.sav
+File > Open > Syntax   →  analysis.sps
+Run > All
+```
+
+> **ملاحظة:** في بعض إصدارات PSPPire على الماك (المثبتة من Homebrew) ممكن تلاقي مشاكل في فتح ملفات الـ syntax. لو حصل كده، استخدم الطريقة السريعة من الـ Terminal أعلاه.
+
+---
+
+## ملاحظات مهمة على النتائج
 
 ### الترميز
 - **Group:** 1=تنافسي×مفتوح، 2=تنافسي×محدد، 3=تشاركي×مفتوح، 4=تشاركي×محدد (مطابق لـ `simulation_data.json`).
@@ -104,10 +131,18 @@ venv/bin/python e7sa_4/build_data.py
 
 # 2. إعادة توليد تقرير المطابقة
 venv/bin/python e7sa_4/reconcile.py
+
+# 3. إعادة تشغيل التحليل
+cd e7sa_4/outputs
+pspp -o pspp_output.html -O format=html analysis.sps
 ```
 
 ### الاعتماديات
 
 ```bash
+# بايثون
 venv/bin/pip install pandas openpyxl pyreadstat
+
+# PSPP (لو مش مثبت)
+brew install pspp
 ```
