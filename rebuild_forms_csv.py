@@ -78,7 +78,7 @@ def rebuild_mcq_csv():
     dropout_ids = get_dropout_ids()
     
     # Get MCQ questions from config to map answer indices to text
-    mcq_questions = config.get("mcqQuestions", [])
+    mcq_questions = config.get("questions", [])
     
     rows = []
     
@@ -102,9 +102,9 @@ def rebuild_mcq_csv():
             if q_idx + 3 < len(header):
                 # resp is the index of chosen option (0-based)
                 if mcq_questions and q_idx < len(mcq_questions):
-                    options = mcq_questions[q_idx].get("options", [])
-                    if isinstance(resp, int) and resp < len(options):
-                        pre_row[q_idx + 3] = options[resp]
+                    choices = mcq_questions[q_idx].get("choices", [])
+                    if isinstance(resp, int) and resp < len(choices):
+                        pre_row[q_idx + 3] = choices[resp]
                     else:
                         pre_row[q_idx + 3] = str(resp)
                 else:
@@ -125,9 +125,9 @@ def rebuild_mcq_csv():
             for q_idx, resp in enumerate(post_responses):
                 if q_idx + 3 < len(header):
                     if mcq_questions and q_idx < len(mcq_questions):
-                        options = mcq_questions[q_idx].get("options", [])
-                        if isinstance(resp, int) and resp < len(options):
-                            post_row[q_idx + 3] = options[resp]
+                        choices = mcq_questions[q_idx].get("choices", [])
+                        if isinstance(resp, int) and resp < len(choices):
+                            post_row[q_idx + 3] = choices[resp]
                         else:
                             post_row[q_idx + 3] = str(resp)
                     else:
@@ -174,9 +174,9 @@ def rebuild_flow_csv():
     students = sim["students"]
     dropout_ids = get_dropout_ids()
     
-    # Likert choices from config
+    # Likert choices from config (ordered 1=دائماً to 5=أبداً)
     flow_config = config.get("flow", {})
-    likert_choices = flow_config.get("likertChoices", ["أبداً", "نادراً", "أحياناً", "غالباً", "دائماً"])
+    likert_choices = flow_config.get("choices", ["دائماً", "غالباً", "أحياناً", "نادراً", "أبداً"])
     
     rows = []
     
