@@ -96,6 +96,73 @@ Run > All
 
 ---
 
+## 🏆 البديل الأفضل — IBM SPSS Statistics (الموصى به للفصل الرابع)
+
+PSPP و SPSS بيستخدموا **نفس الخوارزميات الإحصائية بالظبط** — الأرقام (F, p, SS, df) **متطابقة 100%**. لكن SPSS بيقدم مميزات إضافية:
+
+| الميزة | PSPP | SPSS |
+|---|:---:|:---:|
+| الأرقام (F, p, SS) | ✅ متطابقة | ✅ متطابقة |
+| Partial η² تلقائي | ❌ يدوي | ✅ تلقائي |
+| جداول منسقة | HTML بسيط | APA-style جاهزة |
+| تصدير لـ Word | نسخ يدوي | ✅ مباشر |
+
+### خطوات التشغيل في SPSS:
+
+#### الخطوة 1: افتح ملف البيانات
+```
+File → Open → Data → اختار: data_final.sav
+```
+> الملف فيه 96 صف × 223 عمود مع Labels عربية — هيشتغل في SPSS مباشرة.
+
+#### الخطوة 2: شغّل ملف التحليل
+```
+File → Open → Syntax → اختار: analysis.sps
+```
+ثم اضغط: **Run → All** (أو Ctrl+A ثم ▶️ الزر الأخضر)
+
+> **ملاحظة:** ملف `analysis.sps` يستخدم أمر `GLM` (وليس `UNIANOVA`). في SPSS الاتنين بيدوا نفس النتائج. لو فضّلت `UNIANOVA`، استبدل أوامر `GLM` بـ:
+> ```spss
+> UNIANOVA MCQ_Post_Total BY Pattern Timing
+>   /METHOD=SSTYPE(3)
+>   /PRINT=ETASQ DESCRIPTIVE
+>   /DESIGN=Pattern Timing Pattern*Timing.
+> ```
+
+#### الخطوة 3: فعّل Partial η² (حجم التأثير)
+لو استخدمت القوائم بدل الـ Syntax:
+```
+Analyze → General Linear Model → Univariate
+  → Dependent Variable: MCQ_Post_Total (أو Flow_Post_Total)
+  → Fixed Factors: Pattern, Timing
+  → Options → ☑ Estimates of effect size  ← مهم!
+  → Options → ☑ Descriptive statistics
+  → Post Hoc → اختار Pattern و Timing → ☑ Tukey
+  → Plots → Horizontal: Pattern → Separate Lines: Timing → Add
+  → OK
+```
+
+#### الخطوة 4: صدّر النتائج لـ Word
+```
+File → Export → اختار: Word/RTF (.doc)
+```
+كده الجداول هتبقى جاهزة للنسخ مباشرة في الفصل الرابع.
+
+### النتائج المتوقعة (للتأكيد):
+
+| الفرض | F | Sig | Partial η² | القرار |
+|---|---|---|---|---|
+| ف1: النمط → حل مشكلات | 24.31 | .000 | .242 | ✅ دال |
+| ف2: الزمن → حل مشكلات | 0.07 | .791 | .001 | غير دال |
+| ف3: التفاعل → حل مشكلات | 0.02 | .894 | .000 | غير دال |
+| ف4: النمط → تدفق | 5.30 | .024 | .065 | ✅ دال |
+| ف5: الزمن → تدفق | 16.62 | .000 | .179 | ✅ دال |
+| ف6: التفاعل → تدفق | 0.07 | .789 | .001 | غير دال |
+
+> **تأكيد:** لو الأرقام اللي طلعتلك من SPSS مختلفة عن الجدول ده — فيه مشكلة. راجع إنك فتحت `data_final.sav` الصح وإن `SELECT IF (Is_Dropout = 0)` اتنفذ.
+
+---
+
 ## ملاحظات مهمة على النتائج
 
 ### الترميز
@@ -106,7 +173,7 @@ Run > All
 ### Reverse Coding
 - 23 فقرة سلبية في التدفق الذهني تم عكسها بالفعل في `data_final.sav` (new = 6 − raw).
 - القائمة موجودة في `config.json > flow.negativeItems`.
-- **لا تحتاج لتطبيق أي reverse coding في PSPP** — الداتا جاهزة.
+- **لا تحتاج لتطبيق أي reverse coding في PSPP/SPSS** — الداتا جاهزة.
 
 ### المنسحبون
 - 16 طالب (4 من كل مجموعة) مستبعدون بواسطة `SELECT IF (Is_Dropout = 0)` في بداية `analysis.sps`.
@@ -117,7 +184,7 @@ Run > All
 
   $$\eta^2_p = \frac{SS_{\text{effect}}}{SS_{\text{effect}} + SS_{\text{error}}}$$
 
-  **مثال:** لو جدول PSPP أعطاك `SS_Pattern = 54.45` و `SS_Error = 1118.60`، يبقى `η²_p = 54.45 / (54.45 + 1118.60) = 0.046`.
+  **مثال:** لو جدول PSPP أعطاك `SS_Pattern = 273.80` و `SS_Error = 856.00`، يبقى `η²_p = 273.80 / (273.80 + 856.00) = 0.242`.
 
 ---
 
@@ -126,13 +193,19 @@ Run > All
 ```bash
 cd /Users/user/Documents/Student-Response-Simulator
 
-# 1. إعادة بناء ملفات الداتا
+# 1. إعادة توليد المحاكاة
+venv/bin/python generate_simulation.py --seed 42
+
+# 2. إعادة بناء ملفات الداتا
 venv/bin/python e7sa_4/build_data.py
 
-# 2. إعادة توليد تقرير المطابقة
+# 3. إعادة بناء ملفات Google Forms CSV
+venv/bin/python rebuild_forms_csv.py
+
+# 4. إعادة توليد تقرير المطابقة
 venv/bin/python e7sa_4/reconcile.py
 
-# 3. إعادة تشغيل التحليل
+# 5. إعادة تشغيل التحليل
 cd e7sa_4/outputs
 pspp -o pspp_output.html -O format=html analysis.sps
 ```
@@ -146,3 +219,4 @@ venv/bin/pip install pandas openpyxl pyreadstat
 # PSPP (لو مش مثبت)
 brew install pspp
 ```
+
