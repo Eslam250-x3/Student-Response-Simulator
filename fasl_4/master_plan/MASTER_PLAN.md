@@ -72,18 +72,19 @@
 
 الفصل الرابع = **نتائج البحث وتفسيرها والتوصيات والمقترحات**
 
-### الأقسام الثمانية الرئيسية:
+### الأقسام الستة الرئيسية:
+(بناءً على التنسيق المعتمد في كل من: رسالة كاميليا، ورسالة السيد الصواف)
 
-| # | القسم | الساب بلان |
+| # | القسم | الساب بلان المقابل |
 |---|---|---|
-| 1 | أولاً: الإحصاء الوصفي لمتغيرات البحث | [`sub_plans/01_descriptive_stats.md`](sub_plans/01_descriptive_stats.md) |
-| 2 | ثانيًا: عرض النتائج الخاصة بأسئلة البحث | [`sub_plans/02_research_questions.md`](sub_plans/02_research_questions.md) |
-| 3 | ثالثًا: اختبار صحة فروض البحث | [`sub_plans/03_hypotheses_testing.md`](sub_plans/03_hypotheses_testing.md) |
-| 4 | رابعًا: تفسير نتائج البحث ومناقشتها | [`sub_plans/04_results_interpretation.md`](sub_plans/04_results_interpretation.md) |
-| 5 | خامسًا: التحليل الكيفي لبيانات البحث | [`sub_plans/05_qualitative_analysis.md`](sub_plans/05_qualitative_analysis.md) |
-| 6 | سادسًا: مخرجات البحث | [`sub_plans/06_research_outputs.md`](sub_plans/06_research_outputs.md) |
-| 7 | سابعًا: توصيات البحث | [`sub_plans/07_recommendations.md`](sub_plans/07_recommendations.md) |
-| 8 | ثامنًا: البحوث المقترحة | [`sub_plans/08_suggested_research.md`](sub_plans/08_suggested_research.md) |
+| 1 | أولاً: الإجابة على أسئلة البحث | [`sub_plans/01_research_questions.md`](sub_plans/01_research_questions.md) |
+| 2 | ثانيًا: اختبار صحة فروض البحث | [`sub_plans/02_hypotheses_testing.md`](sub_plans/02_hypotheses_testing.md) |
+| 3 | ثالثًا: تفسير نتائج البحث ومناقشتها | [`sub_plans/03_results_interpretation.md`](sub_plans/03_results_interpretation.md) |
+| 4 | رابعًا: مخرجات البحث | [`sub_plans/04_research_outputs.md`](sub_plans/04_research_outputs.md) |
+| 5 | خامسًا: توصيات البحث | [`sub_plans/05_recommendations.md`](sub_plans/05_recommendations.md) |
+| 6 | سادسًا: مقترحات البحث (البحوث المقترحة) | [`sub_plans/06_suggested_research.md`](sub_plans/06_suggested_research.md) |
+
+*(ملاحظة: تم دمج "الإحصاء الوصفي" ضمن خطوة اختبار الفروض كما هو متبع في المراجع، وتم إدماج قسم "التحليل الكيفي" ضمن تفسير النتائج لتطابق الهيكل الجديد).*
 
 ## 4. فروض البحث المتوقعة (6 فروض)
 
@@ -146,27 +147,25 @@
 
 ## 8. الملفات الناتجة عن الخطة
 
-```
+```text
 fasl_4/master_plan/
 ├── MASTER_PLAN.md                    (هذا الملف)
 ├── chapter4_outline.csv              (مخطط الفصل التفصيلي CSV)
 └── sub_plans/
-    ├── 01_descriptive_stats.md
-    ├── 02_research_questions.md
-    ├── 03_hypotheses_testing.md
-    ├── 04_results_interpretation.md
-    ├── 05_qualitative_analysis.md
-    ├── 06_research_outputs.md
-    ├── 07_recommendations.md
-    └── 08_suggested_research.md
+    ├── 01_research_questions.md
+    ├── 02_hypotheses_testing.md
+    ├── 03_results_interpretation.md
+    ├── 04_research_outputs.md
+    ├── 05_recommendations.md
+    └── 06_suggested_research.md
 ```
 
 ## 9. المراجع والمصادر
 
 ### 9.1 المرجع الهيكلي (نموذج الكتابة):
-الخطة مبنية على **تحليل الفصل الرابع من رسالة تسبيح** (الصفحات 134-163) الموجود في:
-- PDF: [`../رسالة_تسبيح_صفحات_134_163.pdf`](../رسالة_تسبيح_صفحات_134_163.pdf)
-- TXT: [`../رسالة_تسبيح_صفحات_134_163.txt`](../رسالة_تسبيح_صفحات_134_163.txt)
+الخطة مبنية ومُحدّثة على **تحليل الفصل الرابع من رسالتي (السيد الصواف) و (كاميليا)** لضمان التوافق التام مع التنسيق المعياري للكتابة:
+- السيد الصواف: [`../السيد الصواف_صفحات_129-175_OCR.txt`](../السيد الصواف_صفحات_129-175_OCR.txt)
+- كاميليا: [`../كاميليا_صفحات_161-165_OCR.txt`](../كاميليا_صفحات_161-165_OCR.txt)
 
 ### 9.2 المرجع المحتوى (الإطار النظري للبحث الحالي):
 الخطة مُحدَّثة بناءً على تحليل **الإطار النظري (الفصل الثاني) - ملف "الاطار سوبر نهائي.docx"**:
